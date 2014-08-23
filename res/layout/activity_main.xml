@@ -260,17 +260,11 @@
             android:layout_marginBottom="30dp"
             android:text="@string/empty_string"
             android:textSize="50sp"
-            android:textColor="@android:color/white"
+            android:textColor="@android:color/black"
             android:textAppearance="?android:attr/textAppearanceLarge" />
 
 
-        <ImageView
-            android:id="@+id/imageView1"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignBottom="@+id/letterContainer"
-            android:layout_centerHorizontal="true"
-            android:src="@drawable/marduk_lose" />
+
         
         <Button
             android:id="@+id/skipButton"
