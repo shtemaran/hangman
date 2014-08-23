@@ -16,5 +16,7 @@
     <string name="play_again">Play again</string>
     <string name="share">Share</string>
     <string name="exit">Exit</string>
+    <string name="skipText">skip</string>
+    <string name="nextText">next</string>
 
 </resources>

@@ -43,12 +43,20 @@ public class MainActivity extends Activity {
 	question[] questions;
 	TextView lifeCountContainer;
 	String mode;
+	int skipCount=0,allowedSkipCount;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		Intent myIntent = getIntent(); // gets the previously created intent
 		mode = myIntent.getStringExtra("mode");
+		
+		
+		
+		
+		
+		
+		
 		
 				
 		setContentView(R.layout.activity_main);
@@ -63,6 +71,7 @@ public class MainActivity extends Activity {
 		
 		initQuestions();
 		initKeyboard();
+		initSkip();
 		
 		Display display = getWindowManager().getDefaultDisplay();
     	displayWidth=display.getWidth();
@@ -70,9 +79,21 @@ public class MainActivity extends Activity {
     	scoreContainer.setText("0");
 		nextWord();
 		findViewById(R.id.nextTmpButton).setOnClickListener(nextButtonPress);
+		
 	//	((Button)(findViewById(R.id.nextTmpButton))).setText(mode);
 	}
 	
+	private void initSkip()
+	{
+		allowedSkipCount=0;
+		if(mode.equals("Easy"))
+			allowedSkipCount=2;
+		else if(mode.equals("Medium"))
+			allowedSkipCount=1;
+		else if(mode.equals("Hard"))
+			(findViewById(R.id.skipButton)).setEnabled(false);
+		findViewById(R.id.skipButton).setOnClickListener(skipButtonPress);
+	}
 	private void initQuestions()
 	{
 		questions=questionDatabase.getArray();
@@ -113,6 +134,15 @@ public class MainActivity extends Activity {
 	
 	private OnClickListener nextButtonPress = new OnClickListener() {	    
 		public void onClick(View v) {
+	    	nextWord();
+	    }
+	};
+	
+	private OnClickListener skipButtonPress = new OnClickListener() {	    
+		public void onClick(View v) {
+			++skipCount;
+			if(skipCount==allowedSkipCount)
+				(findViewById(R.id.skipButton)).setEnabled(false);
 	    	nextWord();
 	    }
 	};
@@ -165,7 +195,7 @@ public class MainActivity extends Activity {
 	    		Intent myIntent = new Intent(MainActivity.this, YouLostDialog.class);
 				myIntent.putExtra("word", currentWord.a); //Optional parameters
 				MainActivity.this.startActivity(myIntent);	
-	    		//krvar  
+	    		//krvar
 	    	}
 	    	
 	    	currentButton.setEnabled(false);
