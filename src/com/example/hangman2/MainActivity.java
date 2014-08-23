@@ -165,7 +165,7 @@ public class MainActivity extends Activity {
 	    		Intent myIntent = new Intent(MainActivity.this, YouLostDialog.class);
 				myIntent.putExtra("word", currentWord.a); //Optional parameters
 				MainActivity.this.startActivity(myIntent);	
-	    		//krvar
+	    		//krvar  
 	    	}
 	    	
 	    	currentButton.setEnabled(false);
