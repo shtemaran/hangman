@@ -17,14 +17,18 @@
         android:layout_height="230dp"
         android:layout_centerHorizontal="true"
         android:layout_centerVertical="true"
-        android:orientation="vertical" >
-
+        android:orientation="vertical" 
+        
+        >
+ 
         <Button
-            android:id="@+id/easyButton"
-            style="@style/buttonStyle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/mode_easy" />
+           android:id="@+id/easyButton"
+           style="@style/buttonStyle"            
+           android:layout_width="match_parent"
+           android:layout_height="wrap_content"
+           android:text="@string/mode_easy"
+          	
+           />
 
         <Button
             android:id="@+id/mediumButton"
