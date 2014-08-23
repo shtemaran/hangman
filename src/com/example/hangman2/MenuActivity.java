@@ -39,11 +39,6 @@ public class MenuActivity extends Activity {
 			MenuActivity.this.startActivity(myIntent);			
 	    }
 	};
-	private OnClickListener exitButtonClick = new OnClickListener() {	    
-		public void onClick(View v) {
-			System.exit(0);			
-	    }
-	};
 	
 	
 	@Override

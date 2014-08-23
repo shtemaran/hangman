@@ -263,9 +263,7 @@
             android:textColor="@android:color/white"
             android:textAppearance="?android:attr/textAppearanceLarge" />
 
-<<<<<<< HEAD
 
-=======
         <ImageView
             android:id="@+id/imageView1"
             android:layout_width="wrap_content"
@@ -281,6 +279,6 @@
             android:layout_toRightOf="@+id/nextTmpButton"
             android:layout_alignParentTop="true"
             android:text="@string/skipText" />
->>>>>>> 306c8b976d825bb6dc3f85c274969eec5bfb26d8
+
   
 </RelativeLayout>
