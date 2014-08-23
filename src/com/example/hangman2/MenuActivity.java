@@ -25,7 +25,15 @@ public class MenuActivity extends Activity {
 
 	private OnClickListener startGameButtonClick = new OnClickListener() {	    
 		public void onClick(View v) {
-			String mode=((Button)(v)).getText().toString();
+			String id=v.getResources().getResourceName(v.getId());
+			String mode;
+			if (id=="easyButton")
+				mode="easy";
+			else if (id=="mediumButton")
+				mode="medium";
+			else
+				mode="hard";
+			
 			Intent myIntent = new Intent(MenuActivity.this, MainActivity.class);
 			myIntent.putExtra("mode", mode); //Optional parameters
 			MenuActivity.this.startActivity(myIntent);			
