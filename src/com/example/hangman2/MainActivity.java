@@ -72,17 +72,17 @@ public class MainActivity extends Activity {
     	scoreContainer.setText("0");
 		nextWord();
 		findViewById(R.id.nextTmpButton).setOnClickListener(nextButtonPress);
-	//	((Button)(findViewById(R.id.nextTmpButton))).setText(mode);
+		((Button)(findViewById(R.id.nextTmpButton))).setText(mode);
 	}
 	
 	private void initSkip()
 	{
 		allowedSkipCount=0;
-		if(mode.equals("Easy"))
+		if(mode.equals("easy"))
 			allowedSkipCount=2;
-		else if(mode.equals("Medium"))
+		else if(mode.equals("medium"))
 			allowedSkipCount=1;
-		else if(mode.equals("Hard"))
+		else if(mode.equals("hard"))
 			(findViewById(R.id.skipButton)).setEnabled(false);
 		findViewById(R.id.skipButton).setOnClickListener(skipButtonPress);
 	}
