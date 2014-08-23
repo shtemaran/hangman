@@ -249,7 +249,7 @@
             android:layout_height="wrap_content"
             android:layout_alignParentLeft="true"
             android:layout_alignParentTop="true"
-            android:text="next" />
+            android:text="@string/nextText" />
 
         <TextView
             android:id="@+id/lifeCountContainer"
@@ -263,6 +263,24 @@
             android:textColor="@android:color/white"
             android:textAppearance="?android:attr/textAppearanceLarge" />
 
+<<<<<<< HEAD
 
+=======
+        <ImageView
+            android:id="@+id/imageView1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignBottom="@+id/letterContainer"
+            android:layout_centerHorizontal="true"
+            android:src="@drawable/marduk_lose" />
+        
+        <Button
+            android:id="@+id/skipButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toRightOf="@+id/nextTmpButton"
+            android:layout_alignParentTop="true"
+            android:text="@string/skipText" />
+>>>>>>> 306c8b976d825bb6dc3f85c274969eec5bfb26d8
   
 </RelativeLayout>

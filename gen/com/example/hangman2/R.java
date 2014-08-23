@@ -50,6 +50,7 @@ or to a theme attribute in the form "<code>?[<i>package</i>:][<i>type</i>:]<i>na
         public static final int texture=0x7f02000c;
     }
     public static final class id {
+<<<<<<< HEAD
         public static final int action_settings=0x7f090013;
         public static final int easyButton=0x7f09000b;
         public static final int hardButton=0x7f09000d;
@@ -60,16 +61,34 @@ or to a theme attribute in the form "<code>?[<i>package</i>:][<i>type</i>:]<i>na
         public static final int linearLayout1=0x7f09000a;
         public static final int mediumButton=0x7f09000c;
         public static final int menuButton=0x7f090010;
+=======
+        public static final int action_settings=0x7f090014;
+        public static final int easyButton=0x7f09000d;
+        public static final int hardButton=0x7f09000f;
+        public static final int imageView1=0x7f09000a;
+        public static final int keyboardRow1=0x7f090001;
+        public static final int letterContainer=0x7f090005;
+        public static final int lifeCountContainer=0x7f090009;
+        public static final int linearLayout1=0x7f09000c;
+        public static final int mediumButton=0x7f09000e;
+        public static final int menuButton=0x7f090011;
+>>>>>>> 306c8b976d825bb6dc3f85c274969eec5bfb26d8
         public static final int myKeyboard=0x7f090000;
         public static final int nextTmpButton=0x7f090008;
-        public static final int playAgainButton=0x7f090011;
+        public static final int playAgainButton=0x7f090012;
         public static final int questionContainer=0x7f090006;
         public static final int score=0x7f090007;
+        public static final int skipButton=0x7f09000b;
         public static final int tableRow2=0x7f090002;
         public static final int tableRow3=0x7f090003;
         public static final int tableRow4=0x7f090004;
+<<<<<<< HEAD
         public static final int textView=0x7f090012;
         public static final int textView1=0x7f09000e;
+=======
+        public static final int textView=0x7f090013;
+        public static final int textView1=0x7f090010;
+>>>>>>> 306c8b976d825bb6dc3f85c274969eec5bfb26d8
     }
     public static final class layout {
         public static final int activity_main=0x7f030000;
@@ -92,8 +111,10 @@ or to a theme attribute in the form "<code>?[<i>package</i>:][<i>type</i>:]<i>na
         public static final int mode_easy=0x7f070004;
         public static final int mode_hard=0x7f070006;
         public static final int mode_medium=0x7f070005;
+        public static final int nextText=0x7f07000f;
         public static final int play_again=0x7f07000c;
         public static final int share=0x7f07000d;
+        public static final int skipText=0x7f070010;
         public static final int title_activity_fullscreen_dialog=0x7f070007;
         public static final int title_activity_menu=0x7f070003;
         public static final int title_activity_you_lost_dialog=0x7f07000a;
