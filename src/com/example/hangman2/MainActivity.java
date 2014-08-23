@@ -228,7 +228,6 @@ public class MainActivity extends Activity {
 		
 		
 		letterContainer.removeAllViews();		
-		
 		float textHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 40, getResources().getDisplayMetrics());
 		LinearLayout.LayoutParams textViewLayout=new LinearLayout.LayoutParams((int) textHeight, LayoutParams.MATCH_PARENT);
 		textViewLayout.setMargins(5, 0, 5, 0);
