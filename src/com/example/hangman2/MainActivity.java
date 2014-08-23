@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
 	question[] questions;
 	TextView lifeCountContainer;
 	String mode;
+	int allowedSkipCount,skipCount;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +64,7 @@ public class MainActivity extends Activity {
 		
 		initQuestions();
 		initKeyboard();
+		initSkip();
 		
 		Display display = getWindowManager().getDefaultDisplay();
     	displayWidth=display.getWidth();
@@ -71,6 +73,18 @@ public class MainActivity extends Activity {
 		nextWord();
 		findViewById(R.id.nextTmpButton).setOnClickListener(nextButtonPress);
 	//	((Button)(findViewById(R.id.nextTmpButton))).setText(mode);
+	}
+	
+	private void initSkip()
+	{
+		allowedSkipCount=0;
+		if(mode.equals("Easy"))
+			allowedSkipCount=2;
+		else if(mode.equals("Medium"))
+			allowedSkipCount=1;
+		else if(mode.equals("Hard"))
+			(findViewById(R.id.skipButton)).setEnabled(false);
+		findViewById(R.id.skipButton).setOnClickListener(skipButtonPress);
 	}
 	
 	private void initQuestions()
@@ -117,6 +131,15 @@ public class MainActivity extends Activity {
 	    }
 	};
 	
+	private OnClickListener skipButtonPress = new OnClickListener() {	    
+		public void onClick(View v) {
+			++skipCount;
+			if(skipCount==allowedSkipCount)
+				(findViewById(R.id.skipButton)).setEnabled(false);
+	    	nextWord();
+	    }
+	};
+
 	private OnClickListener keyboardButtonPress = new OnClickListener() {
 	    @SuppressWarnings("deprecation")
 		public void onClick(View v) {
@@ -164,6 +187,7 @@ public class MainActivity extends Activity {
 	    	{
 	    		Intent myIntent = new Intent(MainActivity.this, YouLostDialog.class);
 				myIntent.putExtra("word", currentWord.a); //Optional parameters
+				myIntent.putExtra("mode", mode);
 				MainActivity.this.startActivity(myIntent);	
 	    		//krvar
 	    	}

@@ -14,7 +14,8 @@ import android.content.Intent;
 import android.os.Build;
 
 public class YouLostDialog extends Activity {
-
+	
+	String mode;
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -22,6 +23,7 @@ public class YouLostDialog extends Activity {
 		// Show the Up button in the action bar.
 		
 		Intent myIntent = getIntent(); // gets the previously created intent
+		mode=myIntent.getStringExtra("mode");
 		
 		((TextView)(findViewById(R.id.textView))).setText(myIntent.getStringExtra("word"));
 		
@@ -39,7 +41,7 @@ public class YouLostDialog extends Activity {
 	private OnClickListener playAgainButtonPress = new OnClickListener() {	    
 		public void onClick(View v) {
 			Intent myIntent = new Intent(YouLostDialog.this, MainActivity.class);
-			myIntent.putExtra("mode", ""); //Optional parameters
+			myIntent.putExtra("mode",mode ); //Optional parameters
 			YouLostDialog.this.startActivity(myIntent);	
 	    }
 	};
