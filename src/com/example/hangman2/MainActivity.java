@@ -11,11 +11,14 @@ import android.app.ActionBar.LayoutParams;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.media.Image;
 import android.os.Bundle;
 import android.provider.ContactsContract.CommonDataKinds.Im;
 import android.util.Log;
@@ -62,10 +65,7 @@ public class MainActivity extends Activity {
 		Intent myIntent = getIntent(); // gets the previously created intent
 		mode = myIntent.getStringExtra("mode");
 		
-		personContainer=(ImageView)(findViewById(R.id.personContainer));
-		
-      
-        
+		//personContainer=(ImageView)(findViewById(R.id.personContainer));       
 		
 		setContentView(R.layout.activity_main);
 		scoreContainer=(TextView)(findViewById(R.id.score));
@@ -193,8 +193,13 @@ public class MainActivity extends Activity {
 	    	{
 	    		currentButton.setBackgroundDrawable(getResources().getDrawable(R.drawable.button_invalid));
 	    		--lifeCounter;	    		
-	    		int[] imageNames=new int[]{R.raw.m_0,R.raw.m_1,R.raw.m_2,R.raw.m_3,R.raw.m_4,R.raw.m_5,R.raw.m_6,R.raw.m_7,R.raw.m_8,R.raw.m_9,R.raw.m_10,R.raw.m_11,R.raw.m_12,R.raw.m_13,R.raw.m_14};
-	    		personContainer.setImageResource(imageNames[lifeCounter]);
+	    		int[] imageNames=new int[]{R.drawable.sm_0,R.drawable.sm_1,R.drawable.sm_2,R.drawable.sm_3,R.drawable.sm_4,R.drawable.sm_5,R.drawable.sm_6,R.drawable.sm_7,R.drawable.sm_8,R.drawable.sm_9,R.drawable.sm_10,R.drawable.sm_11,R.drawable.sm_12,R.drawable.sm_13,R.drawable.sm_14};
+	    		
+	    		//Bitmap nextImage=BitmapFactory.decodeResource(getApplicationContext().getResources(),
+                 //       imageNames[lifeCounter]);	
+	    		
+	    		((ImageView)(findViewById(R.id.personContainer))).setImageResource(imageNames[lifeCounter]);
+	    		//nextImage.recycle();
 	    	//	tmpTextBox.setText(pressedText+" : "+ans.charAt(0));
 	    	}
 	    	

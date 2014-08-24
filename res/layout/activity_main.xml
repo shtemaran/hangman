@@ -262,10 +262,9 @@
             android:layout_marginTop="15dp"
             android:layout_alignParentLeft="true"
             android:layout_alignTop="@+id/score"            
-            android:src="@raw/m_0"
-            android:padding="0dp"
-            android:background="@android:color/transparent"
-            />
+            android:src="@drawable/sm_0"
+            android:padding="0dp"            
+            /> 
             
         
         
