@@ -14,7 +14,11 @@ import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Typeface;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.provider.ContactsContract.CommonDataKinds.Im;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Display;
 import android.view.Gravity;
@@ -22,11 +26,16 @@ import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
+import android.widget.Toast;
+
+
 import com.example.hangman2.question;
+
 
 
 
@@ -44,6 +53,8 @@ public class MainActivity extends Activity {
 	TextView lifeCountContainer;
 	String mode;
 	int allowedSkipCount,skipCount;
+	ImageView personContainer;
+	
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -51,7 +62,11 @@ public class MainActivity extends Activity {
 		Intent myIntent = getIntent(); // gets the previously created intent
 		mode = myIntent.getStringExtra("mode");
 		
-				
+		personContainer=(ImageView)(findViewById(R.id.personContainer));
+		
+      
+        
+		
 		setContentView(R.layout.activity_main);
 		scoreContainer=(TextView)(findViewById(R.id.score));
 		questionContainer=(TextView)(findViewById(R.id.questionContainer));
@@ -59,8 +74,7 @@ public class MainActivity extends Activity {
 		typeface = Typeface.createFromAsset(getAssets(), "fonts/arnamu.ttf");
 		lifeCountContainer=(TextView)(findViewById(R.id.lifeCountContainer));
 		
-		lifeCounter=7;
-		lifeCountContainer.setText(""+lifeCounter);
+		lifeCounter=15;
 		
 		initQuestions();
 		initKeyboard();
@@ -72,17 +86,17 @@ public class MainActivity extends Activity {
     	scoreContainer.setText("0");
 		nextWord();
 		findViewById(R.id.nextTmpButton).setOnClickListener(nextButtonPress);
-		((Button)(findViewById(R.id.nextTmpButton))).setText(mode);
+	//	((Button)(findViewById(R.id.nextTmpButton))).setText(mode);
 	}
 	
 	private void initSkip()
 	{
 		allowedSkipCount=0;
-		if(mode.equals("easy"))
+		if(mode.equals("Easy"))
 			allowedSkipCount=2;
-		else if(mode.equals("medium"))
+		else if(mode.equals("Medium"))
 			allowedSkipCount=1;
-		else if(mode.equals("hard"))
+		else if(mode.equals("Hard"))
 			(findViewById(R.id.skipButton)).setEnabled(false);
 		findViewById(R.id.skipButton).setOnClickListener(skipButtonPress);
 	}
@@ -120,6 +134,7 @@ public class MainActivity extends Activity {
 				currentButton.setTypeface(typeface);
 				currentButton.setEnabled(true);
 				currentButton.setBackgroundDrawable(getResources().getDrawable(R.drawable.keyboard_button));
+				
 				currentButton.setOnClickListener(keyboardButtonPress);	
 			}
 		}
@@ -177,9 +192,9 @@ public class MainActivity extends Activity {
 	    	if(!exists)
 	    	{
 	    		currentButton.setBackgroundDrawable(getResources().getDrawable(R.drawable.button_invalid));
-	    		--lifeCounter;
-	    		lifeCountContainer=(TextView)findViewById(R.id.lifeCountContainer);
-	    		lifeCountContainer.setText(""+lifeCounter);
+	    		--lifeCounter;	    		
+	    		int[] imageNames=new int[]{R.raw.m_0,R.raw.m_1,R.raw.m_2,R.raw.m_3,R.raw.m_4,R.raw.m_5,R.raw.m_6,R.raw.m_7,R.raw.m_8,R.raw.m_9,R.raw.m_10,R.raw.m_11,R.raw.m_12,R.raw.m_13,R.raw.m_14};
+	    		personContainer.setImageResource(imageNames[lifeCounter]);
 	    	//	tmpTextBox.setText(pressedText+" : "+ans.charAt(0));
 	    	}
 	    	
@@ -228,6 +243,7 @@ public class MainActivity extends Activity {
 		
 		
 		letterContainer.removeAllViews();		
+		
 		float textHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 40, getResources().getDisplayMetrics());
 		LinearLayout.LayoutParams textViewLayout=new LinearLayout.LayoutParams((int) textHeight, LayoutParams.MATCH_PARENT);
 		textViewLayout.setMargins(5, 0, 5, 0);
