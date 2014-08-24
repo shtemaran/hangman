@@ -19,7 +19,7 @@
     <string name="nextText">next</string>
     <string name="skipText">skip</string>
     <string name="yourScore">Ձեր հաշիվը:</string>
-    
+    <string name="choseLevel">Ընտրեք մակարդակ:</string>
 	<string name="saved_high_score_default">saved_high_score_default</string>
 	<string name="saved_high_score">saved_high_score</string>
 </resources>

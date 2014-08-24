@@ -102,6 +102,7 @@ or to a theme attribute in the form "<code>?[<i>package</i>:][<i>type</i>:]<i>na
     public static final class string {
         public static final int action_settings=0x7f070001;
         public static final int app_name=0x7f070000;
+        public static final int choseLevel=0x7f070012;
         public static final int dummy_button=0x7f070008;
         public static final int dummy_content=0x7f070009;
         public static final int empty_string=0x7f070002;
@@ -112,8 +113,8 @@ or to a theme attribute in the form "<code>?[<i>package</i>:][<i>type</i>:]<i>na
         public static final int mode_medium=0x7f070005;
         public static final int nextText=0x7f07000f;
         public static final int play_again=0x7f07000c;
-        public static final int saved_high_score=0x7f070013;
-        public static final int saved_high_score_default=0x7f070012;
+        public static final int saved_high_score=0x7f070014;
+        public static final int saved_high_score_default=0x7f070013;
         public static final int share=0x7f07000d;
         public static final int skipText=0x7f070010;
         public static final int title_activity_fullscreen_dialog=0x7f070007;
