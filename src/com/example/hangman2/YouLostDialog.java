@@ -12,6 +12,7 @@ import android.widget.TextView;
 import android.support.v4.app.NavUtils;
 import android.annotation.TargetApi;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 
 public class YouLostDialog extends Activity {
@@ -24,9 +25,23 @@ public class YouLostDialog extends Activity {
 		setContentView(R.layout.activity_you_lost_dialog);
 		// Show the Up button in the action bar.
 		
+		
+		
 		Intent myIntent = getIntent(); // gets the previously created intent		
 		mode=myIntent.getStringExtra("mode");
 		((TextView)(findViewById(R.id.score))).setText(myIntent.getStringExtra("score"));
+		
+		SharedPreferences sharedPref = YouLostDialog.this.getPreferences(getApplicationContext().MODE_PRIVATE);		
+		long highScore = sharedPref.getInt(getString(R.string.saved_high_score), -1);
+		if (Integer.parseInt(myIntent.getStringExtra("score"))>highScore)
+		{
+			((ImageView)(findViewById(R.id.personImage))).setImageResource(R.drawable.happymarduk);
+			
+			SharedPreferences.Editor editor = sharedPref.edit();
+			editor.putInt(getString(R.string.saved_high_score), Integer.parseInt(myIntent.getStringExtra("score")));
+			editor.commit();
+		}
+		
 		
 		((ImageView)(findViewById(R.id.menu))).setOnClickListener(menuButtonPress);
 		((ImageView)(findViewById(R.id.playAgain))).setOnClickListener(playAgainButtonPress);
