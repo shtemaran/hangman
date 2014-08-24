@@ -74,7 +74,7 @@ public class MainActivity extends Activity {
 		typeface = Typeface.createFromAsset(getAssets(), "fonts/arnamu.ttf");
 		lifeCountContainer=(TextView)(findViewById(R.id.lifeCountContainer));
 		
-		lifeCounter=15;
+		lifeCounter=14;
 		
 		initQuestions();
 		initKeyboard();
