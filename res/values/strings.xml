@@ -18,5 +18,6 @@
     <string name="exit">Exit</string>
     <string name="nextText">next</string>
     <string name="skipText">skip</string>
+    <string name="yourScore">Ձեր հաշիվը:</string>
 
 </resources>

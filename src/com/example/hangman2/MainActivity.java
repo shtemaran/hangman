@@ -206,8 +206,8 @@ public class MainActivity extends Activity {
 	    	if(lifeCounter<=0)
 	    	{
 	    		Intent myIntent = new Intent(MainActivity.this, YouLostDialog.class);
-				myIntent.putExtra("word", currentWord.a); //Optional parameters
-				myIntent.putExtra("mode", mode);
+				myIntent.putExtra("score", ""+score); //Optional parameters
+				myIntent.putExtra("mode", mode);				
 				MainActivity.this.startActivity(myIntent);	
 	    		//krvar
 	    	}

@@ -7,6 +7,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.support.v4.app.NavUtils;
 import android.annotation.TargetApi;
@@ -15,20 +16,20 @@ import android.os.Build;
 
 public class YouLostDialog extends Activity {
 	
-	String mode;
+	String score,mode;
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_you_lost_dialog);
 		// Show the Up button in the action bar.
 		
-		Intent myIntent = getIntent(); // gets the previously created intent
+		Intent myIntent = getIntent(); // gets the previously created intent		
 		mode=myIntent.getStringExtra("mode");
+		((TextView)(findViewById(R.id.score))).setText(myIntent.getStringExtra("score"));
 		
-		((TextView)(findViewById(R.id.textView))).setText(myIntent.getStringExtra("word"));
-		
-		((Button)(findViewById(R.id.menuButton))).setOnClickListener(menuButtonPress);
-		((Button)(findViewById(R.id.playAgainButton))).setOnClickListener(playAgainButtonPress);
+		((ImageView)(findViewById(R.id.menu))).setOnClickListener(menuButtonPress);
+		((ImageView)(findViewById(R.id.playAgain))).setOnClickListener(playAgainButtonPress);
 	}
 
 	private OnClickListener menuButtonPress = new OnClickListener() {	    
