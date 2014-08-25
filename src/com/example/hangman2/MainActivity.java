@@ -206,7 +206,7 @@ public class MainActivity extends Activity {
 	    	if(lifeCounter<=0)
 	    	{
 	    		Intent myIntent = new Intent(MainActivity.this, YouLostDialog.class);
-				myIntent.putExtra("score", ""+score); //Optional parameters
+				myIntent.putExtra("score", "" + score); //Optional parameters
 				myIntent.putExtra("mode", mode);				
 				MainActivity.this.startActivity(myIntent);	
 	    		//krvar
@@ -265,8 +265,6 @@ public class MainActivity extends Activity {
 			currentText.setTypeface(typeface);
 			letterContainer.addView(currentText);
 		}
-		
-		
 	}
 	
 	@Override

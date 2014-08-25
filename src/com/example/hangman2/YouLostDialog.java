@@ -24,18 +24,16 @@ public class YouLostDialog extends Activity {
 		
 		Intent myIntent = getIntent(); // gets the previously created intent		
 		mode=myIntent.getStringExtra("mode");
+		
+		int currentScore=Integer.parseInt(myIntent.getStringExtra("score"));
 		((TextView)(findViewById(R.id.score))).setText(myIntent.getStringExtra("score"));
 		
-		SharedPreferences sharedPref = YouLostDialog.this.getPreferences(getApplicationContext().MODE_PRIVATE);		
-		long highScore = sharedPref.getInt(getString(R.string.saved_high_score), -1);
-		if (Integer.parseInt(myIntent.getStringExtra("score"))>highScore)
-		{
+		SharedPreferences sharedPref = YouLostDialog.this.getPreferences(getApplicationContext().MODE_PRIVATE);
+		String str=getString(R.string.saved_high_score);
+		int isHighscore=scoreKeeper.updateHighscore(currentScore, sharedPref, str);
+		
+		if (isHighscore == 1)
 			((ImageView)(findViewById(R.id.personImage))).setImageResource(R.drawable.happymarduk);
-			
-			SharedPreferences.Editor editor = sharedPref.edit();
-			editor.putInt(getString(R.string.saved_high_score), Integer.parseInt(myIntent.getStringExtra("score")));
-			editor.commit();
-		}
 		
 		
 		((ImageView)(findViewById(R.id.menu))).setOnClickListener(menuButtonPress);
