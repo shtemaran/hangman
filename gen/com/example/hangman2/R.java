@@ -22,6 +22,7 @@ or to a theme attribute in the form "<code>?[<i>package</i>:][<i>type</i>:]<i>na
         public static final int background=0x7f050000;
         public static final int black_overlay=0x7f050003;
         public static final int keyboard=0x7f050001;
+        public static final int red=0x7f050004;
         public static final int score=0x7f050002;
     }
     public static final class dimen {

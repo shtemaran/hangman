@@ -7,6 +7,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import android.R.color;
 import android.app.ActionBar.LayoutParams;
 import android.app.Activity;
 import android.content.Intent;
@@ -20,6 +21,7 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.media.Image;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.ContactsContract.CommonDataKinds.Im;
 import android.util.Log;
 import android.util.TypedValue;
@@ -170,7 +172,8 @@ public class MainActivity extends Activity {
 		public void onClick(View v) {
 	    	Button currentButton=(Button)(v);
 	   // 	tmpTextBox.setText(tmpTextBox.getText()+currentButton.getText().toString());
-	    
+	    	if(lifeCounter<0 || currentCount<0)
+	    		return;
 	    	
 	    	int i,cnt=0;
 	    	Boolean exists=false;
@@ -213,21 +216,56 @@ public class MainActivity extends Activity {
 	    	//	tmpTextBox.setText(pressedText+" : "+ans.charAt(0));
 	    	}
 	    	
-	    	if(lifeCounter<=0)
+	    	if(lifeCounter==0)
 	    	{
-	    		Intent myIntent = new Intent(MainActivity.this, YouLostDialog.class);
-				myIntent.putExtra("score", "" + score); //Optional parameters
-				myIntent.putExtra("mode", mode);				
-				MainActivity.this.startActivity(myIntent);	
+	    		lifeCounter--;
+	    		for(cnt=0,i=0;i<ans.length();++i,++cnt)
+		    	{
+		    		if(i+1<ans.length() && ans.charAt(i+1)=='ւ')
+		    		{		    			
+		    			((TextView)letterContainer.getChildAt(cnt)).setText("ու");		    		
+		    			++i;
+		    		}
+		    		else		    		
+		    			((TextView)letterContainer.getChildAt(cnt)).setText(ans.charAt(i)+"");
+		    		((TextView)letterContainer.getChildAt(cnt)).setBackgroundColor(Color.RED);
+		    	}
+	    		
+	    		final Handler handler = new Handler();
+	    		handler.postDelayed(new Runnable() {
+	    		    @Override
+	    		    public void run() {
+	    		    	Intent myIntent = new Intent(MainActivity.this, YouLostDialog.class);
+	    				myIntent.putExtra("score", "" + score); //Optional parameters
+	    				myIntent.putExtra("mode", mode);				
+	    				MainActivity.this.startActivity(myIntent);
+	    				MainActivity.this.finish();
+	    		    }
+	    		}, 1750);
+	    		
+	    		
 	    		//krvar
 	    	}
 	    	
 	    	currentButton.setEnabled(false);
 	    	if(currentCount==0)
 	    	{
+	    		currentCount--;
 	    		++score;
 		    	scoreContainer.setText("Հաշիվ: "+score);
-	    		nextWord();
+		    	
+	    		for(cnt=0,i=0;i<ans.length();++i,++cnt)		    	
+		    		((TextView)letterContainer.getChildAt(cnt)).setBackgroundColor(Color.parseColor("#2a7907"));
+		    	
+		    	
+		    	final Handler handler = new Handler();
+	    		handler.postDelayed(new Runnable() {
+	    		    @Override
+	    		    public void run() {
+	    		    	nextWord();
+	    		    }
+	    		}, 800);
+	    		
 	    	}
 	    	
 	    }
