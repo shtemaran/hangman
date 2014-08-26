@@ -53,7 +53,6 @@ public class MainActivity extends Activity {
 	TextView scoreContainer;
 	int displayWidth;
 	question[] questions;
-	TextView lifeCountContainer;
 	String mode;
 	int allowedSkipCount,skipCount;
 	ImageView personContainer;
@@ -72,33 +71,42 @@ public class MainActivity extends Activity {
 		questionContainer=(TextView)(findViewById(R.id.questionContainer));
 		letterContainer = (LinearLayout)(findViewById(R.id.letterContainer));
 		typeface = Typeface.createFromAsset(getAssets(), "fonts/arnamu.ttf");
-		lifeCountContainer=(TextView)(findViewById(R.id.lifeCountContainer));
 		
 		lifeCounter=14;
 		
 		initQuestions();
 		initKeyboard();
 		initSkip();
-		
+				
 		Display display = getWindowManager().getDefaultDisplay();
     	displayWidth=display.getWidth();
 		
-    	scoreContainer.setText("0");
+    	scoreContainer.setText("Հաշիվ: 0");
 		nextWord();
-		findViewById(R.id.nextTmpButton).setOnClickListener(nextButtonPress);
+
 	//	((Button)(findViewById(R.id.nextTmpButton))).setText(mode);
 	}
 	
 	private void initSkip()
 	{
+		LinearLayout skipCountContainer=(LinearLayout)findViewById(R.id.skipCountContainer);
+		skipCountContainer.setClickable(true);
+		skipCountContainer.setOnClickListener(skipButtonPress);
 		allowedSkipCount=0;
-		if(mode.equals("Easy"))
+		if(mode.equals("easy"))
+			allowedSkipCount=4;
+		else if(mode.equals("medium"))
+		{
+			skipCountContainer.removeViewAt(0);
+			skipCountContainer.removeViewAt(1);
 			allowedSkipCount=2;
-		else if(mode.equals("Medium"))
-			allowedSkipCount=1;
-		else if(mode.equals("Hard"))
-			(findViewById(R.id.skipButton)).setEnabled(false);
-		findViewById(R.id.skipButton).setOnClickListener(skipButtonPress);
+		}
+		else if(mode.equals("hard"))
+		{
+			skipCountContainer.removeAllViews();
+			allowedSkipCount=0;
+		}
+		
 	}
 	
 	private void initQuestions()
@@ -148,9 +156,11 @@ public class MainActivity extends Activity {
 	
 	private OnClickListener skipButtonPress = new OnClickListener() {	    
 		public void onClick(View v) {
+			if(skipCount>=allowedSkipCount)
+				return;
+			LinearLayout skipCountContainer=(LinearLayout)findViewById(R.id.skipCountContainer);						
+			skipCountContainer.getChildAt(skipCount).setBackgroundResource(R.drawable.arrow_disabled);
 			++skipCount;
-			if(skipCount==allowedSkipCount)
-				(findViewById(R.id.skipButton)).setEnabled(false);
 	    	nextWord();
 	    }
 	};
@@ -216,7 +226,7 @@ public class MainActivity extends Activity {
 	    	if(currentCount==0)
 	    	{
 	    		++score;
-		    	scoreContainer.setText(""+score);
+		    	scoreContainer.setText("Հաշիվ: "+score);
 	    		nextWord();
 	    	}
 	    	
