@@ -254,7 +254,7 @@ public class MainActivity extends Activity {
 	    		++score;
 		    	scoreContainer.setText("Հաշիվ: "+score);
 		    	
-	    		for(cnt=0,i=0;i<ans.length();++i,++cnt)		    	
+	    		for(cnt=0;cnt<currentWord.a.length()-currentWord.a.length()+currentWord.a.replace("ւ", "").length();++cnt)		    	
 		    		((TextView)letterContainer.getChildAt(cnt)).setBackgroundColor(Color.parseColor("#2a7907"));
 		    	
 		    	
@@ -266,7 +266,6 @@ public class MainActivity extends Activity {
 	    		    	nextWord();
 	    		    }
 	    		}, 800);
-	    		
 	    	}
 	    	
 	    }
