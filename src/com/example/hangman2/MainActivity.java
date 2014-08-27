@@ -231,8 +231,8 @@ public class MainActivity extends Activity {
 		    		((TextView)letterContainer.getChildAt(cnt)).setBackgroundColor(Color.RED);
 		    	}
 	    		
-	    		final Handler handler = new Handler();
-	    		handler.postDelayed(new Runnable() {
+	    		final Handler wrongHandler = new Handler();
+	    		wrongHandler.postDelayed(new Runnable() {
 	    		    @Override
 	    		    public void run() {
 	    		    	Intent myIntent = new Intent(MainActivity.this, YouLostDialog.class);
@@ -258,10 +258,11 @@ public class MainActivity extends Activity {
 		    		((TextView)letterContainer.getChildAt(cnt)).setBackgroundColor(Color.parseColor("#2a7907"));
 		    	
 		    	
-		    	final Handler handler = new Handler();
-	    		handler.postDelayed(new Runnable() {
+		    	final Handler rightHandler = new Handler();
+		    	rightHandler.postDelayed(new Runnable() {
 	    		    @Override
 	    		    public void run() {
+	    		    	Log.i("MyActivity", "Handler works normally!!!!");
 	    		    	nextWord();
 	    		    }
 	    		}, 800);
@@ -270,8 +271,7 @@ public class MainActivity extends Activity {
 	    	
 	    }
 	};
-	
-	@SuppressWarnings("deprecation")
+
 	private void nextWord()
 	{
 		initKeyboard();
