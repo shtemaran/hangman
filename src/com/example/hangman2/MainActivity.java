@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.zip.Inflater;
 
 import android.R.color;
 import android.app.ActionBar.LayoutParams;
@@ -27,9 +28,11 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.Display;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -58,7 +61,7 @@ public class MainActivity extends Activity {
 	String mode;
 	int allowedSkipCount,skipCount;
 	ImageView personContainer;
-	
+	Boolean doubleBackToGoToMenuPressedOnce=false;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -261,8 +264,7 @@ public class MainActivity extends Activity {
 		    	final Handler rightHandler = new Handler();
 		    	rightHandler.postDelayed(new Runnable() {
 	    		    @Override
-	    		    public void run() {
-	    		    	Log.i("MyActivity", "Handler works normally!!!!");
+	    		    public void run() {	    		    	
 	    		    	nextWord();
 	    		    }
 	    		}, 800);
@@ -313,7 +315,32 @@ public class MainActivity extends Activity {
 			letterContainer.addView(currentText);
 		}
 	}
-	
+	@Override
+	public void onBackPressed() {
+	    if (doubleBackToGoToMenuPressedOnce) {
+	    	Intent myIntent = new Intent(MainActivity.this, MenuActivity.class);			
+			MainActivity.this.startActivity(myIntent);	
+			MainActivity.this.finish();
+	        return;
+	    }
+
+	    this.doubleBackToGoToMenuPressedOnce = true;
+	    //Toast.makeText(this, "Please click BACK again to go to menu", Toast.LENGTH_SHORT).show();
+	    
+	    Toast toast = Toast.makeText(getApplicationContext(), R.string.press_again_to_exit, Toast.LENGTH_SHORT);
+	    LinearLayout toastLayout = (LinearLayout) toast.getView();
+	    TextView toastTV = (TextView) toastLayout.getChildAt(0);
+	    toastTV.setTypeface(typeface);
+	    toast.show();
+	   
+	    new Handler().postDelayed(new Runnable() {
+
+	        @Override
+	        public void run() {
+	        	doubleBackToGoToMenuPressedOnce=false;                       
+	        }
+	    }, 2000);
+	} 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.

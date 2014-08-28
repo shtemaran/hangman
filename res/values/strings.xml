@@ -22,4 +22,5 @@
     <string name="choseLevel">Ընտրեք մակարդակ:</string>
 	<string name="saved_high_score_default">saved_high_score_default</string>
 	<string name="saved_high_score">saved_high_score</string>
+	<string name="press_again_to_exit">Սեղմեք կրկին, գլխավոր էջ վերադառնալու համար</string>
 </resources>

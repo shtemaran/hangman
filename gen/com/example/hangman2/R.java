@@ -114,6 +114,7 @@ or to a theme attribute in the form "<code>?[<i>package</i>:][<i>type</i>:]<i>na
         public static final int mode_medium=0x7f070005;
         public static final int nextText=0x7f07000f;
         public static final int play_again=0x7f07000c;
+        public static final int press_again_to_exit=0x7f070015;
         public static final int saved_high_score=0x7f070014;
         public static final int saved_high_score_default=0x7f070013;
         public static final int share=0x7f07000d;

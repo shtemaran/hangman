@@ -35,7 +35,8 @@ public class MenuActivity extends Activity {
 			
 			Intent myIntent = new Intent(MenuActivity.this, MainActivity.class);
 			myIntent.putExtra("mode", mode); //Optional parameters
-			MenuActivity.this.startActivity(myIntent);			
+			MenuActivity.this.startActivity(myIntent);	
+			MenuActivity.this.finish();
 	    }
 	};
 	

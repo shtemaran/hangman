@@ -42,9 +42,9 @@ public class YouLostDialog extends Activity {
 
 	private OnClickListener menuButtonPress = new OnClickListener() {	    
 		public void onClick(View v) {
-			Intent myIntent = new Intent(YouLostDialog.this, MenuActivity.class);
-			myIntent.putExtra("mode", ""); //Optional parameters
+			Intent myIntent = new Intent(YouLostDialog.this, MenuActivity.class);			
 			YouLostDialog.this.startActivity(myIntent);	
+			YouLostDialog.this.finish();
 	    }
 	};
 	private OnClickListener playAgainButtonPress = new OnClickListener() {	    
@@ -52,6 +52,7 @@ public class YouLostDialog extends Activity {
 			Intent myIntent = new Intent(YouLostDialog.this, MainActivity.class);
 			myIntent.putExtra("mode",mode ); //Optional parameters
 			YouLostDialog.this.startActivity(myIntent);	
+			YouLostDialog.this.finish();
 	    }
 	};
 	@Override
@@ -60,7 +61,12 @@ public class YouLostDialog extends Activity {
 		getMenuInflater().inflate(R.menu.you_lost_dialog, menu);
 		return true;
 	}
-
+	@Override
+	public void onBackPressed() {	   
+		Intent myIntent = new Intent(YouLostDialog.this, MenuActivity.class);			
+		YouLostDialog.this.startActivity(myIntent);	
+		YouLostDialog.this.finish();
+	}
 
 
 }
