@@ -218,6 +218,163 @@ function loseGame() {
   showScreen('lose');
 }
 
+// Screenshot capture: render the live DOM into an SVG <foreignObject>, draw
+// it to a canvas, get a PNG blob. CSS and image references must be inlined
+// as data URIs because the SVG-as-image rasterizer can't make fetches.
+async function urlToDataUri(url) {
+  const r = await fetch(url, { cache: 'force-cache' });
+  if (!r.ok) throw new Error(`fetch ${url}: ${r.status}`);
+  const blob = await r.blob();
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
+}
+
+async function inlineCssUrls(cssText) {
+  const urls = new Set();
+  cssText.replace(/url\(\s*['"]?([^'")]+?)['"]?\s*\)/g, (_, u) => { urls.add(u); return _; });
+  const entries = await Promise.all([...urls].map(async (u) => {
+    if (u.startsWith('data:')) return [u, u];
+    try {
+      return [u, await urlToDataUri(new URL(u, location.href).href)];
+    } catch {
+      return [u, null];
+    }
+  }));
+  const map = new Map(entries);
+  return cssText.replace(/url\(\s*['"]?([^'")]+?)['"]?\s*\)/g,
+    (m, u) => map.get(u) ? `url(${map.get(u)})` : m);
+}
+
+async function collectAllCss() {
+  const parts = [];
+  for (const sheet of document.styleSheets) {
+    try {
+      for (const rule of sheet.cssRules) parts.push(rule.cssText);
+    } catch { /* CORS-blocked sheet, skip */ }
+  }
+  return inlineCssUrls(parts.join('\n'));
+}
+
+async function inlineImageSrcs(root) {
+  const imgs = root.querySelectorAll('img');
+  await Promise.all([...imgs].map(async (img) => {
+    const src = img.getAttribute('src');
+    if (!src || src.startsWith('data:')) return;
+    try {
+      img.setAttribute('src', await urlToDataUri(new URL(src, location.href).href));
+    } catch { /* leave as-is */ }
+  }));
+}
+
+async function captureScreenshotBlob() {
+  const body = document.body;
+  const rect = body.getBoundingClientRect();
+  const w = Math.max(1, Math.ceil(rect.width));
+  const h = Math.max(1, Math.ceil(rect.height));
+  const dpr = window.devicePixelRatio || 1;
+
+  // 1. Clone the DOM and drop the screenshot button from the clone so it
+  //    doesn't appear in the captured image.
+  const clone = body.cloneNode(true);
+  const cloneShotBtn = clone.querySelector('#shotBtn');
+  if (cloneShotBtn) cloneShotBtn.remove();
+  await inlineImageSrcs(clone);
+
+  // 2. Inline every stylesheet rule + every url(...) inside them.
+  const css = await collectAllCss();
+
+  // 3. The rasterizer doesn't resolve env() so safe-area padding will be 0.
+  //    That's what we want -- a content-only image. Apply explicit inline
+  //    layout to the clone so it doesn't depend on body styling working
+  //    inside <foreignObject>.
+  clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  clone.style.cssText =
+    `width:${w}px;height:${h}px;display:flex;flex-direction:column;` +
+    `overflow:hidden;padding:0;margin:0;`;
+
+  const bodyXml = new XMLSerializer().serializeToString(clone);
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+      `<foreignObject width="100%" height="100%">` +
+        `<style xmlns="http://www.w3.org/1999/xhtml">${css}</style>` +
+        bodyXml +
+      `</foreignObject>` +
+    `</svg>`;
+
+  // 4. Rasterize: SVG -> Image -> Canvas -> PNG blob.
+  const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('SVG image failed to load'));
+      i.src = svgUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.drawImage(img, 0, 0);
+    return await new Promise((resolve, reject) =>
+      canvas.toBlob((b) => b ? resolve(b) : reject(new Error('toBlob returned null')), 'image/png')
+    );
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+
+// Deliver the blob via the best available channel:
+//   1. navigator.clipboard.write([ClipboardItem]) -- ideal, lands in paste buffer.
+//   2. navigator.share({files}) -- Android/iOS share sheet.
+//   3. <a download> -- always works, saves a file.
+async function deliverScreenshot(blob) {
+  if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      toast('Պատճենվեց');
+      return;
+    } catch (e) {
+      console.warn('clipboard.write failed', e);
+    }
+  }
+  if (navigator.canShare && navigator.share) {
+    const file = new File([blob], 'hangman.png', { type: 'image/png' });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return; // user dismissed
+        console.warn('navigator.share failed', e);
+      }
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'hangman.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('Ներբեռնվեց');
+}
+
+function toast(message) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = message;
+  document.body.appendChild(t);
+  setTimeout(() => t.classList.add('fade'), 1300);
+  setTimeout(() => t.remove(), 1800);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   renderMenuHighScores();
   for (const btn of document.querySelectorAll('.menu-btn[data-mode]')) {
@@ -227,6 +384,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('menuBtn').addEventListener('click', () => {
     renderMenuHighScores();
     showScreen('menu');
+  });
+  document.getElementById('shotBtn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const blob = await captureScreenshotBlob();
+      await deliverScreenshot(blob);
+    } catch (err) {
+      console.error(err);
+      toast('Չհաջողվեց');
+    } finally {
+      btn.disabled = false;
+    }
   });
 });
 

@@ -95,6 +95,45 @@ body {
 }
 #score { font-size: 20px; font-weight: 700; }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#shotBtn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: #2a1a05;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+#shotBtn:active { opacity: 0.6; }
+#shotBtn:disabled { opacity: 0.4; cursor: default; }
+
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 17px;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+  z-index: 100;
+  max-width: 80%;
+  text-align: center;
+}
+.toast.fade { opacity: 0; }
+
 #person {
   flex: 1;
   min-height: 0;
