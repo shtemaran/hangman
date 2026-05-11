@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+build/
+local.properties
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# Android Studio captures / profilers
+captures/
+
+# Legacy Eclipse / ADT (kept here in case anyone reintroduces them)
+.classpath
+.project
+.settings/
+bin/
+gen/
