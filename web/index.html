@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="hy">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7a5230">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>Կախաղան</title>
+</head>
+<body>
+  <section id="menu" class="screen active">
+    <h1>Ընտրեք մակարդակ</h1>
+    <button class="menu-btn" data-mode="easy">
+      Հեշտ
+      <span class="hs" data-hs="easy"></span>
+    </button>
+    <button class="menu-btn" data-mode="medium">
+      Միջին
+      <span class="hs" data-hs="medium"></span>
+    </button>
+    <button class="menu-btn" data-mode="hard">
+      Բարդ
+      <span class="hs" data-hs="hard"></span>
+    </button>
+  </section>
+
+  <section id="game" class="screen">
+    <div class="topbar">
+      <div id="skipContainer" aria-label="Բաց թողնել"></div>
+      <div id="score">Հաշիվ: 0</div>
+    </div>
+    <div id="person"><img id="personImg" alt="" draggable="false"></div>
+    <div id="clue"></div>
+    <div id="letters"></div>
+    <div id="keyboard"></div>
+  </section>
+
+  <section id="lose" class="screen">
+    <img id="loseImg" alt="" draggable="false">
+    <div id="loseLabel">Ձեր հաշիվը:</div>
+    <div id="loseScore">0</div>
+    <div id="loseHigh"></div>
+    <div class="dialog-buttons">
+      <button class="menu-btn" id="playAgainBtn">Կրկին</button>
+      <button class="menu-btn" id="menuBtn">Մենյու</button>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>

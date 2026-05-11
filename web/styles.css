@@ -1,0 +1,190 @@
+@font-face {
+  font-family: 'Arnamu';
+  src: url('assets/arnamu.ttf') format('truetype');
+  font-display: swap;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: 'Arnamu', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: #e8d8a0;
+  color: #2a1a05;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.screen {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.screen.active { display: flex; }
+
+/* Menu */
+#menu {
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+}
+#menu h1 {
+  font-size: 30px;
+  margin: 0 0 16px;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Buttons (shared between menu and lose-dialog) */
+.menu-btn {
+  width: min(280px, 80vw);
+  padding: 14px 24px;
+  font: inherit;
+  font-size: 22px;
+  background: #c8a062;
+  color: #2a1a05;
+  border: 3px solid #2a1a05;
+  border-radius: 12px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.menu-btn:active { transform: translateY(1px); }
+.menu-btn .hs {
+  display: block;
+  font-size: 14px;
+  margin-top: 4px;
+  opacity: 0.75;
+  min-height: 1em;
+}
+
+/* Game */
+#game .topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px;
+}
+#skipContainer {
+  display: flex;
+  gap: 4px;
+  cursor: pointer;
+}
+.skip-arrow {
+  width: 26px;
+  height: 26px;
+  background: #2a7907;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  transition: background 120ms;
+}
+.skip-arrow.used { background: #888; }
+#score { font-size: 20px; font-weight: 700; }
+
+#person {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+#person img {
+  max-width: 80%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+#clue {
+  text-align: center;
+  font-size: 22px;
+  padding: 4px 12px;
+  min-height: 1.4em;
+}
+
+#letters {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+}
+.letter-slot {
+  flex: 0 1 40px;
+  min-width: 16px;
+  height: 42px;
+  background: #2a1a05;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  border-radius: 4px;
+}
+.letter-slot.correct { background: #2a7907; }
+.letter-slot.wrong { background: #b03030; }
+
+#keyboard {
+  display: grid;
+  gap: 4px;
+  padding: 6px 4px;
+  background: rgba(0, 0, 0, 0.05);
+}
+.kbd-row {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+}
+.key {
+  font: inherit;
+  font-size: 18px;
+  padding: 10px 0;
+  background: #c8a062;
+  color: #2a1a05;
+  border: 2px solid #2a1a05;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 44px;
+  line-height: 1;
+}
+.key:disabled { opacity: 0.35; cursor: default; }
+.key.wrong { background: #b03030; color: #fff; border-color: #2a1a05; }
+
+/* Lose dialog */
+#lose {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  gap: 14px;
+  text-align: center;
+}
+#lose img {
+  max-width: 60%;
+  max-height: 35%;
+  object-fit: contain;
+}
+#loseLabel { font-size: 22px; }
+#loseScore { font-size: 44px; font-weight: 700; line-height: 1; }
+#loseHigh {
+  font-size: 18px;
+  color: #2a7907;
+  min-height: 1.4em;
+  font-weight: 700;
+}
+.dialog-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(280px, 80vw);
+  margin-top: 4px;
+}
