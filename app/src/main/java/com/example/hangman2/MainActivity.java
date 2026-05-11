@@ -31,8 +31,10 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.View;
+import android.view.View.OnApplyWindowInsetsListener;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -72,6 +74,7 @@ public class MainActivity extends Activity {
 		//personContainer=(ImageView)(findViewById(R.id.personContainer));       
 		
 		setContentView(R.layout.activity_main);
+		applySystemBarInsets();
 		scoreContainer=(TextView)(findViewById(R.id.score));
 		questionContainer=(TextView)(findViewById(R.id.questionContainer));
 		letterContainer = (LinearLayout)(findViewById(R.id.letterContainer));
@@ -346,6 +349,28 @@ public class MainActivity extends Activity {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.main, menu);
 		return true;
+	}
+
+	// On API 35+ the system enforces edge-to-edge: content draws behind the
+	// nav bar. The keyboard is alignParentBottom, so its bottom row ends up
+	// under the nav bar. Pad the content frame by the system-bar insets so
+	// nothing sits underneath them.
+	@SuppressWarnings("deprecation")
+	private void applySystemBarInsets() {
+		findViewById(android.R.id.content).setOnApplyWindowInsetsListener(
+			new OnApplyWindowInsetsListener() {
+				@Override
+				public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+					v.setPadding(
+						insets.getSystemWindowInsetLeft(),
+						insets.getSystemWindowInsetTop(),
+						insets.getSystemWindowInsetRight(),
+						insets.getSystemWindowInsetBottom()
+					);
+					return insets;
+				}
+			}
+		);
 	}
 
 }

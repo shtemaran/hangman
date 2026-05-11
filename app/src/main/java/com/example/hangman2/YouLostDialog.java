@@ -5,7 +5,9 @@ import android.app.Activity;
 import android.graphics.Typeface;
 import android.view.Menu;
 import android.view.View;
+import android.view.View.OnApplyWindowInsetsListener;
 import android.view.View.OnClickListener;
+import android.view.WindowInsets;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.content.Intent;
@@ -19,6 +21,7 @@ public class YouLostDialog extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_you_lost_dialog);
+		applySystemBarInsets();
 		// Show the Up button in the action bar.
 		
 		
@@ -66,11 +69,30 @@ public class YouLostDialog extends Activity {
 		return true;
 	}
 	@Override
-	public void onBackPressed() {	   
-		Intent myIntent = new Intent(YouLostDialog.this, MenuActivity.class);			
-		YouLostDialog.this.startActivity(myIntent);	
+	public void onBackPressed() {
+		Intent myIntent = new Intent(YouLostDialog.this, MenuActivity.class);
+		YouLostDialog.this.startActivity(myIntent);
 		YouLostDialog.this.finish();
 	}
 
+	// On API 35+ edge-to-edge is enforced; the bottom button row would sit
+	// under the nav bar. Pad the content frame by the system-bar insets.
+	@SuppressWarnings("deprecation")
+	private void applySystemBarInsets() {
+		findViewById(android.R.id.content).setOnApplyWindowInsetsListener(
+			new OnApplyWindowInsetsListener() {
+				@Override
+				public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+					v.setPadding(
+						insets.getSystemWindowInsetLeft(),
+						insets.getSystemWindowInsetTop(),
+						insets.getSystemWindowInsetRight(),
+						insets.getSystemWindowInsetBottom()
+					);
+					return insets;
+				}
+			}
+		);
+	}
 
 }
