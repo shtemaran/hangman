@@ -116,32 +116,35 @@ body {
   min-height: 1.4em;
 }
 
+/* Slot + keyboard colors come straight from the Android drawables:
+   - letter_shape.xml      slate blue #2e4b5b, square (no corners)
+   - keyboard_button.xml   #2e4b5b default; state_enabled=false -> #2a7907 green
+   - button_invalid.xml    #e51c2f red (applied on a wrong guess) */
+
 #letters {
   display: flex;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   padding: 8px;
 }
 .letter-slot {
-  flex: 0 1 40px;
-  min-width: 16px;
-  height: 42px;
-  background: #2a1a05;
+  flex: 0 1 52px;
+  min-width: 18px;
+  height: 52px;
+  background: #2e4b5b;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  border-radius: 4px;
+  font-size: 26px;
 }
 .letter-slot.correct { background: #2a7907; }
-.letter-slot.wrong { background: #b03030; }
+.letter-slot.wrong { background: #e51c2f; }
 
 #keyboard {
   display: grid;
   gap: 4px;
   padding: 6px 4px;
-  background: rgba(0, 0, 0, 0.05);
 }
 .kbd-row {
   display: grid;
@@ -152,16 +155,19 @@ body {
   font: inherit;
   font-size: 18px;
   padding: 10px 0;
-  background: #c8a062;
-  color: #2a1a05;
-  border: 2px solid #2a1a05;
-  border-radius: 6px;
+  background: #2e4b5b;
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
   cursor: pointer;
   min-height: 44px;
   line-height: 1;
 }
-.key:disabled { opacity: 0.35; cursor: default; }
-.key.wrong { background: #b03030; color: #fff; border-color: #2a1a05; }
+/* Pressed-correct (Android: state_enabled=false in keyboard_button.xml) */
+.key:disabled { background: #2a7907; cursor: default; }
+/* Pressed-wrong (Android: button_invalid.xml swapped in on a wrong guess).
+   Source-ordered after :disabled so it wins when both apply. */
+.key.wrong { background: #e51c2f; }
 
 /* Lose dialog */
 #lose {
