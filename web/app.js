@@ -111,7 +111,6 @@ function buildKeyboard() {
       b.addEventListener('click', () => onLetter(letter, b));
       r.appendChild(b);
     }
-    while (r.children.length < 10) r.appendChild(document.createElement('span'));
     kb.appendChild(r);
   }
 }

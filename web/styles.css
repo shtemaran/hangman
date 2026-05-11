@@ -151,6 +151,19 @@ body {
   grid-template-columns: repeat(10, 1fr);
   gap: 4px;
 }
+/* The 9-key bottom row keeps the same key width as the rows above
+   (1/10 of the row) and is centered, leaving ~half a key of empty
+   space on each side. Flex with a fixed basis is the simplest way to
+   match the upper rows' column width exactly: 100% of the row minus
+   the 9 gaps' total, divided by 10 keys. */
+.kbd-row:last-child {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+.kbd-row:last-child .key {
+  flex: 0 0 calc((100% - 36px) / 10);
+}
 .key {
   font: inherit;
   font-size: 18px;
