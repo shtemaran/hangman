@@ -2,6 +2,7 @@ package com.example.hangman2;
 
 import android.os.Bundle;
 import android.app.Activity;
+import android.graphics.Typeface;
 import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -27,6 +28,9 @@ public class YouLostDialog extends Activity {
 		
 		int currentScore=Integer.parseInt(myIntent.getStringExtra("score"));
 		((TextView)(findViewById(R.id.score))).setText(myIntent.getStringExtra("score"));
+
+		Typeface arnamu = Typeface.createFromAsset(getAssets(), "fonts/arnamu.ttf");
+		((TextView)(findViewById(R.id.textContainer))).setTypeface(arnamu);
 		
 		SharedPreferences sharedPref = YouLostDialog.this.getPreferences(getApplicationContext().MODE_PRIVATE);
 		String str=getString(R.string.saved_high_score);
