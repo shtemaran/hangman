@@ -17,7 +17,10 @@ body {
   flex-direction: column;
   overflow: hidden;
   font-family: 'Arnamu', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  background: #e8d8a0;
+  /* The tile is a pre-baked 2x2 mirror of texture.png so that plain CSS
+     `repeat` produces the same seamless mirrored fill as the Android
+     drawable (tileMode="mirror"). */
+  background: #e8d8a0 url('assets/texture-tile.png') repeat;
   color: #2a1a05;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   user-select: none;
@@ -83,13 +86,13 @@ body {
   cursor: pointer;
 }
 .skip-arrow {
-  width: 26px;
-  height: 26px;
-  background: #2a7907;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-  transition: background 120ms;
+  width: 34px;
+  height: 34px;
+  background: url('assets/arrow.png') center / contain no-repeat;
 }
-.skip-arrow.used { background: #888; }
+.skip-arrow.used {
+  background-image: url('assets/arrow_disabled.png');
+}
 #score { font-size: 20px; font-weight: 700; }
 
 #person {
