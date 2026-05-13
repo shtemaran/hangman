@@ -292,13 +292,32 @@ async function captureScreenshotBlob() {
   // 3. Move body's children into a plain <div xmlns="...xhtml"> wrapper.
   //    A <body> element inside <foreignObject> is technically allowed but
   //    flaky on mobile Safari / older Chrome; a <div> is the common pattern.
-  //    The rasterizer doesn't resolve env() (safe-area padding becomes 0),
-  //    which is what we want for a content-only screenshot.
+  //
+  //    Catch: `body { ... }` rules in the inlined CSS don't match a <div>,
+  //    so the body's background texture and font-family wouldn't apply.
+  //    Copy those onto the wrapper inline, with the background-image URL
+  //    resolved to a data URI (the SVG rasterizer can't fetch).
+  const bodyComputed = getComputedStyle(body);
+  let bgImageCss = '';
+  const bgMatch = bodyComputed.backgroundImage.match(/url\(["']?([^"')]+)["']?\)/);
+  if (bgMatch) {
+    try {
+      const bgDataUri = await urlToDataUri(bgMatch[1]);
+      bgImageCss =
+        `background-image:url('${bgDataUri}');` +
+        `background-repeat:${bodyComputed.backgroundRepeat};`;
+    } catch { /* fall back to solid background-color only */ }
+  }
+
   const wrapper = document.createElement('div');
   wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
   wrapper.style.cssText =
     `width:${w}px;height:${h}px;display:flex;flex-direction:column;` +
-    `overflow:hidden;margin:0;padding:0;`;
+    `overflow:hidden;margin:0;padding:0;` +
+    `color:${bodyComputed.color};` +
+    `font-family:${bodyComputed.fontFamily};` +
+    `background-color:${bodyComputed.backgroundColor};` +
+    bgImageCss;
   while (bodyClone.firstChild) wrapper.appendChild(bodyClone.firstChild);
 
   const wrapperXml = new XMLSerializer().serializeToString(wrapper);
