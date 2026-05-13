@@ -63,6 +63,34 @@ function showScreen(id) {
   }
 }
 
+// History-aware navigation. The initial document load is treated as the
+// "menu" base state (history.state === null). Going to any sub-screen
+// pushes one entry on top so that Android's back gesture pops back to
+// the menu. Transitions between sub-screens (game <-> lose) replace the
+// top entry instead of stacking, so back always lands on the menu in
+// one step.
+function pushScreen(screen) {
+  const current = history.state && history.state.screen;
+  if (current && current !== 'menu') {
+    history.replaceState({ screen }, '');
+  } else {
+    history.pushState({ screen }, '');
+  }
+  showScreen(screen);
+}
+
+function goToMenu() {
+  const current = history.state && history.state.screen;
+  if (current && current !== 'menu') {
+    // Let the back navigation drive the screen change via popstate,
+    // so the history depth stays consistent with what the user sees.
+    history.back();
+  } else {
+    showScreen('menu');
+    renderMenuHighScores();
+  }
+}
+
 function getHighScore(mode) {
   const v = localStorage.getItem('hs_' + mode);
   return v == null ? 0 : parseInt(v, 10) || 0;
@@ -115,7 +143,7 @@ async function startGame(mode) {
   document.getElementById('score').textContent = 'Հաշիվ: 0';
   buildKeyboard();
   buildSkipArrows();
-  showScreen('game');
+  pushScreen('game');
   nextWord();
 }
 
@@ -237,11 +265,15 @@ function onLetter(letter, btn) {
 }
 
 function loseGame() {
+  // Guard: if the user pressed back during the 1.5s reveal-before-lose
+  // pause, we're no longer on the game screen and shouldn't flip the UI
+  // to the lose dialog.
+  if (!document.getElementById('game').classList.contains('active')) return;
   const isHigh = setHighScore(state.mode, state.score);
   document.getElementById('loseImg').src = isHigh ? 'assets/happymarduk.png' : 'assets/sm_0.png';
   document.getElementById('loseScore').textContent = state.score;
   document.getElementById('loseHigh').textContent = isHigh ? 'Նոր ռեկորդ!' : '';
-  showScreen('lose');
+  pushScreen('lose');
 }
 
 // Stats screen — list every encountered word with a small inline sparkline
@@ -573,17 +605,20 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => startGame(btn.dataset.mode));
   }
   document.getElementById('playAgainBtn').addEventListener('click', () => startGame(state.mode));
-  document.getElementById('menuBtn').addEventListener('click', () => {
-    renderMenuHighScores();
-    showScreen('menu');
-  });
+  document.getElementById('menuBtn').addEventListener('click', () => goToMenu());
   document.getElementById('statsLink').addEventListener('click', () => {
     renderStats();
-    showScreen('stats');
+    pushScreen('stats');
   });
-  document.getElementById('statsBackBtn').addEventListener('click', () => {
-    renderMenuHighScores();
-    showScreen('menu');
+  document.getElementById('statsBackBtn').addEventListener('click', () => goToMenu());
+
+  // Intercept the system back gesture (Android back button or browser back).
+  // Without this, back from any sub-screen would exit the PWA instead of
+  // returning to the menu.
+  window.addEventListener('popstate', (e) => {
+    const target = (e.state && e.state.screen) || 'menu';
+    if (target === 'menu') renderMenuHighScores();
+    showScreen(target);
   });
   document.getElementById('shotBtn').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
