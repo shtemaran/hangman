@@ -27,6 +27,7 @@
       Բարդ
       <span class="hs" data-hs="hard"></span>
     </button>
+    <button class="menu-link" id="statsLink" type="button">Վիճակագրություն</button>
   </section>
 
   <section id="game" class="screen">
@@ -47,6 +48,19 @@
     <div id="clue"></div>
     <div id="letters"></div>
     <div id="keyboard"></div>
+  </section>
+
+  <section id="stats" class="screen">
+    <div class="stats-topbar">
+      <button id="statsBackBtn" type="button" aria-label="Հետ">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 6 9 12 15 18"/>
+        </svg>
+      </button>
+      <h2>Վիճակագրություն</h2>
+    </div>
+    <div id="statsList"></div>
+    <div id="statsEmpty" style="display:none">Դեռ ոչ մի խաղ չի խաղացվել</div>
   </section>
 
   <section id="lose" class="screen">

@@ -72,6 +72,22 @@ body {
   min-height: 1em;
 }
 
+/* Tertiary text-link button, used for the "Statistics" entry on the menu. */
+.menu-link {
+  margin-top: 18px;
+  background: transparent;
+  border: 0;
+  color: #2a1a05;
+  font: inherit;
+  font-size: 17px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  padding: 6px 12px;
+  opacity: 0.8;
+}
+.menu-link:active { opacity: 0.5; }
+
 /* Game */
 #game .topbar {
   display: flex;
@@ -249,4 +265,105 @@ body {
   gap: 10px;
   width: min(280px, 80vw);
   margin-top: 4px;
+}
+
+/* Stats screen */
+#stats {
+  /* Override the screen flex centering: stats is a scrolling list. */
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.stats-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+}
+.stats-topbar h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+#statsBackBtn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: #2a1a05;
+  cursor: pointer;
+  padding: 0;
+}
+#statsBackBtn:active { opacity: 0.6; }
+
+#statsList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0 16px;
+}
+
+#statsEmpty {
+  text-align: center;
+  padding: 40px 24px;
+  font-size: 17px;
+  opacity: 0.7;
+}
+
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.stats-text {
+  flex: 1;
+  min-width: 0;
+}
+.stats-answer {
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stats-clue {
+  font-size: 14px;
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+.stats-summary {
+  font-size: 13px;
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+/* Mastery chip — colour comes from the wrong/slots ratio. */
+.stats-chip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.stats-chip.strong  { background: #2a7907; }
+.stats-chip.medium  { background: #d6a417; }
+.stats-chip.weak    { background: #e51c2f; }
+.stats-chip.unknown { background: #888; }
+
+/* Sparkline */
+.spark {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
 }

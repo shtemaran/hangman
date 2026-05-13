@@ -81,6 +81,29 @@ function renderMenuHighScores() {
   }
 }
 
+// Per-word stats: one JSON blob in localStorage with the full attempt
+// history for every word the user has encountered. Used to render the
+// stats screen with progress-over-time sparklines.
+const STATS_KEY = 'hangmanStats_v1';
+
+function readStats() {
+  try { return JSON.parse(localStorage.getItem(STATS_KEY)) || {}; }
+  catch { return {}; }
+}
+function writeStats(obj) {
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(obj)); }
+  catch (e) { console.warn('stats write failed', e); }
+}
+function recordAttempt(word, outcome, wrong) {
+  if (!word) return;
+  const all = readStats();
+  const entry = all[word.a] || (all[word.a] = { clue: word.q, slots: buildSlots(word.a).length, attempts: [] });
+  entry.clue = word.q;
+  entry.slots = buildSlots(word.a).length;
+  entry.attempts.push({ t: Date.now(), outcome, wrong });
+  writeStats(all);
+}
+
 async function startGame(mode) {
   await loadWords();
   state.mode = mode;
@@ -170,6 +193,7 @@ function onSkip() {
   const arrows = document.querySelectorAll('.skip-arrow');
   if (arrows[state.skipsUsed]) arrows[state.skipsUsed].classList.add('used');
   state.skipsUsed++;
+  recordAttempt(state.current, 'skipped', MAX_LIVES - state.lives);
   nextWord();
 }
 
@@ -194,6 +218,7 @@ function onLetter(letter, btn) {
       state.locked = true;
       for (const slot of state.slots) slot.revealed = true;
       renderSlots('wrong');
+      recordAttempt(state.current, 'lost', MAX_LIVES);
       setTimeout(loseGame, LOSE_PAUSE_MS);
       return;
     }
@@ -206,6 +231,7 @@ function onLetter(letter, btn) {
     state.score++;
     document.getElementById('score').textContent = `Հաշիվ: ${state.score}`;
     renderSlots('correct');
+    recordAttempt(state.current, 'solved', MAX_LIVES - state.lives);
     setTimeout(nextWord, REVEAL_PAUSE_MS);
   }
 }
@@ -216,6 +242,130 @@ function loseGame() {
   document.getElementById('loseScore').textContent = state.score;
   document.getElementById('loseHigh').textContent = isHigh ? 'Նոր ռեկորդ!' : '';
   showScreen('lose');
+}
+
+// Stats screen — list every encountered word with a small inline sparkline
+// showing the wrong-guesses-per-slot ratio across its attempt history.
+// Weakest words bubble to the top so the user knows what to practice.
+const SPARK_W = 84;
+const SPARK_H = 36;
+const SPARK_PAD = 4;
+const RATIO_CLAMP = 1.5;
+
+function entryStats(entry) {
+  const solves = entry.attempts.filter((a) => a.outcome === 'solved');
+  const losses = entry.attempts.filter((a) => a.outcome === 'lost');
+  const skips = entry.attempts.filter((a) => a.outcome === 'skipped');
+  const solveRate = entry.attempts.length ? solves.length / entry.attempts.length : 0;
+  const avgWrong = solves.length ? solves.reduce((s, a) => s + a.wrong, 0) / solves.length : null;
+  const avgRatio = solves.length ? avgWrong / entry.slots : null;
+  return { solves, losses, skips, solveRate, avgWrong, avgRatio };
+}
+
+function weakness(entry) {
+  if (!entry.attempts.length) return -Infinity;
+  const s = entryStats(entry);
+  if (s.solves.length === 0) return Infinity; // never solved -> top
+  return (1 - s.solveRate) * 2 + s.avgRatio;
+}
+
+function masteryClass(avgRatio) {
+  if (avgRatio == null) return 'unknown';
+  if (avgRatio < 0.3) return 'strong';
+  if (avgRatio < 1.0) return 'medium';
+  return 'weak';
+}
+
+function sparklineSvg(entry) {
+  const a = entry.attempts;
+  const innerW = SPARK_W - SPARK_PAD * 2;
+  const innerH = SPARK_H - SPARK_PAD * 2;
+  // Y position for a wrong/slots ratio, clamped at RATIO_CLAMP.
+  const yFor = (ratio) => {
+    const r = Math.min(ratio, RATIO_CLAMP) / RATIO_CLAMP;
+    return SPARK_PAD + r * innerH;
+  };
+  // X position for the i-th attempt out of N (centers when N=1).
+  const xFor = (i) => a.length === 1
+    ? SPARK_W / 2
+    : SPARK_PAD + (i / (a.length - 1)) * innerW;
+
+  // Connecting line through consecutive solved points only.
+  const solvedPath = [];
+  a.forEach((att, i) => {
+    if (att.outcome !== 'solved') return;
+    const x = xFor(i);
+    const y = yFor(att.wrong / entry.slots);
+    solvedPath.push(`${solvedPath.length === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`);
+  });
+  const polyline = solvedPath.length >= 2
+    ? `<path d="${solvedPath.join(' ')}" stroke="#2a7907" stroke-width="1.5" fill="none" opacity="0.6"/>`
+    : '';
+
+  // Markers per attempt.
+  const markers = a.map((att, i) => {
+    const x = xFor(i);
+    if (att.outcome === 'solved') {
+      const y = yFor(att.wrong / entry.slots);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#2a7907"/>`;
+    }
+    if (att.outcome === 'lost') {
+      const y = SPARK_H - SPARK_PAD;
+      return `<rect x="${(x - 2.5).toFixed(1)}" y="${(y - 2.5).toFixed(1)}" width="5" height="5" fill="#e51c2f"/>`;
+    }
+    // skipped
+    const y = SPARK_H - SPARK_PAD;
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="none" stroke="#888" stroke-width="1.2"/>`;
+  }).join('');
+
+  // Faint top + bottom guide lines so a lone marker has visual context.
+  const guides =
+    `<line x1="${SPARK_PAD}" y1="${SPARK_PAD}" x2="${SPARK_W - SPARK_PAD}" y2="${SPARK_PAD}" stroke="#0002" stroke-width="0.5"/>` +
+    `<line x1="${SPARK_PAD}" y1="${SPARK_H - SPARK_PAD}" x2="${SPARK_W - SPARK_PAD}" y2="${SPARK_H - SPARK_PAD}" stroke="#0002" stroke-width="0.5"/>`;
+
+  return `<svg class="spark" viewBox="0 0 ${SPARK_W} ${SPARK_H}" width="${SPARK_W}" height="${SPARK_H}" aria-hidden="true">${guides}${polyline}${markers}</svg>`;
+}
+
+function renderStats() {
+  const list = document.getElementById('statsList');
+  const empty = document.getElementById('statsEmpty');
+  const all = readStats();
+  const entries = Object.entries(all);
+
+  if (entries.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  // Weakest first.
+  entries.sort(([, A], [, B]) => {
+    const wb = weakness(B);
+    const wa = weakness(A);
+    if (wb !== wa) return wb - wa;
+    return B.attempts.length - A.attempts.length;
+  });
+
+  list.innerHTML = entries.map(([answer, entry]) => {
+    const s = entryStats(entry);
+    const cls = masteryClass(s.avgRatio);
+    const avgWrongStr = s.avgWrong == null ? '—' : s.avgWrong.toFixed(1);
+    const summary =
+      `${entry.attempts.length} փորձ · ` +
+      `միջ. ${avgWrongStr} · ` +
+      `${s.skips.length} բացթ.`;
+    return (
+      `<div class="stats-row">` +
+        `<div class="stats-text">` +
+          `<div class="stats-answer">${answer}<span class="stats-chip ${cls}"></span></div>` +
+          `<div class="stats-clue">${entry.clue}</div>` +
+          `<div class="stats-summary">${summary}</div>` +
+        `</div>` +
+        sparklineSvg(entry) +
+      `</div>`
+    );
+  }).join('');
 }
 
 // Screenshot capture: render the live DOM into an SVG <foreignObject>, draw
@@ -420,6 +570,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   document.getElementById('playAgainBtn').addEventListener('click', () => startGame(state.mode));
   document.getElementById('menuBtn').addEventListener('click', () => {
+    renderMenuHighScores();
+    showScreen('menu');
+  });
+  document.getElementById('statsLink').addEventListener('click', () => {
+    renderStats();
+    showScreen('stats');
+  });
+  document.getElementById('statsBackBtn').addEventListener('click', () => {
     renderMenuHighScores();
     showScreen('menu');
   });
