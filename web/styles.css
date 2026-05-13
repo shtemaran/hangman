@@ -348,17 +348,22 @@ body {
   margin-top: 4px;
 }
 
-/* Mastery chip — colour comes from the wrong/slots ratio. */
+/* Mastery chip — colour comes from the wrong/slots ratio. Palette is the
+   Okabe-Ito colour-blind-safe trio (blue / orange / vermillion); they
+   stay distinguishable for both red-green and blue-yellow CVD. The thin
+   dark border keeps the chip visible on the cream background even when
+   the colour itself doesn't pop. */
 .stats-chip {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.45);
   flex-shrink: 0;
 }
-.stats-chip.strong  { background: #2a7907; }
-.stats-chip.medium  { background: #d6a417; }
-.stats-chip.weak    { background: #e51c2f; }
+.stats-chip.strong  { background: #0072B2; }  /* blue */
+.stats-chip.medium  { background: #E69F00; }  /* orange */
+.stats-chip.weak    { background: #D55E00; }  /* vermillion */
 .stats-chip.unknown { background: #888; }
 
 /* Sparkline */

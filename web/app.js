@@ -291,6 +291,9 @@ function sparklineSvg(entry) {
     : SPARK_PAD + (i / (a.length - 1)) * innerW;
 
   // Connecting line through consecutive solved points only.
+  // Colors come from the Okabe-Ito colour-blind-safe palette:
+  //   solved/strong = blue       #0072B2
+  //   lost/weak     = vermillion #D55E00
   const solvedPath = [];
   a.forEach((att, i) => {
     if (att.outcome !== 'solved') return;
@@ -299,7 +302,7 @@ function sparklineSvg(entry) {
     solvedPath.push(`${solvedPath.length === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`);
   });
   const polyline = solvedPath.length >= 2
-    ? `<path d="${solvedPath.join(' ')}" stroke="#2a7907" stroke-width="1.5" fill="none" opacity="0.6"/>`
+    ? `<path d="${solvedPath.join(' ')}" stroke="#0072B2" stroke-width="1.5" fill="none" opacity="0.6"/>`
     : '';
 
   // Markers per attempt.
@@ -307,11 +310,11 @@ function sparklineSvg(entry) {
     const x = xFor(i);
     if (att.outcome === 'solved') {
       const y = yFor(att.wrong / entry.slots);
-      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#2a7907"/>`;
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#0072B2"/>`;
     }
     if (att.outcome === 'lost') {
       const y = SPARK_H - SPARK_PAD;
-      return `<rect x="${(x - 2.5).toFixed(1)}" y="${(y - 2.5).toFixed(1)}" width="5" height="5" fill="#e51c2f"/>`;
+      return `<rect x="${(x - 2.5).toFixed(1)}" y="${(y - 2.5).toFixed(1)}" width="5" height="5" fill="#D55E00"/>`;
     }
     // skipped
     const y = SPARK_H - SPARK_PAD;
@@ -339,11 +342,12 @@ function renderStats() {
   }
   empty.style.display = 'none';
 
-  // Weakest first.
+  // Best-known first. Lowest weakness sorts to the top; never-solved words
+  // (weakness = Infinity) end up at the bottom.
   entries.sort(([, A], [, B]) => {
-    const wb = weakness(B);
     const wa = weakness(A);
-    if (wb !== wa) return wb - wa;
+    const wb = weakness(B);
+    if (wa !== wb) return wa - wb;
     return B.attempts.length - A.attempts.length;
   });
 
