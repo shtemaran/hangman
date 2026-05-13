@@ -277,56 +277,75 @@ async function captureScreenshotBlob() {
   const h = Math.max(1, Math.ceil(rect.height));
   const dpr = window.devicePixelRatio || 1;
 
-  // 1. Clone the DOM and drop the screenshot button from the clone so it
-  //    doesn't appear in the captured image.
-  const clone = body.cloneNode(true);
-  const cloneShotBtn = clone.querySelector('#shotBtn');
+  // 1. Clone the DOM. Drop the screenshot button and anything that doesn't
+  //    belong in the rasterized image (scripts/links/meta etc — they confuse
+  //    strict XML parsers inside <foreignObject> on some mobile browsers).
+  const bodyClone = body.cloneNode(true);
+  const cloneShotBtn = bodyClone.querySelector('#shotBtn');
   if (cloneShotBtn) cloneShotBtn.remove();
-  await inlineImageSrcs(clone);
+  bodyClone.querySelectorAll('script, link, meta, noscript').forEach((n) => n.remove());
+  await inlineImageSrcs(bodyClone);
 
   // 2. Inline every stylesheet rule + every url(...) inside them.
   const css = await collectAllCss();
 
-  // 3. The rasterizer doesn't resolve env() so safe-area padding will be 0.
-  //    That's what we want -- a content-only image. Apply explicit inline
-  //    layout to the clone so it doesn't depend on body styling working
-  //    inside <foreignObject>.
-  clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-  clone.style.cssText =
+  // 3. Move body's children into a plain <div xmlns="...xhtml"> wrapper.
+  //    A <body> element inside <foreignObject> is technically allowed but
+  //    flaky on mobile Safari / older Chrome; a <div> is the common pattern.
+  //    The rasterizer doesn't resolve env() (safe-area padding becomes 0),
+  //    which is what we want for a content-only screenshot.
+  const wrapper = document.createElement('div');
+  wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  wrapper.style.cssText =
     `width:${w}px;height:${h}px;display:flex;flex-direction:column;` +
-    `overflow:hidden;padding:0;margin:0;`;
+    `overflow:hidden;margin:0;padding:0;`;
+  while (bodyClone.firstChild) wrapper.appendChild(bodyClone.firstChild);
 
-  const bodyXml = new XMLSerializer().serializeToString(clone);
+  const wrapperXml = new XMLSerializer().serializeToString(wrapper);
+  // Wrap CSS in CDATA in case any rule contains characters that XML would
+  // otherwise interpret (e.g. `&` in a font-family fallback).
+  const styleEl =
+    `<style xmlns="http://www.w3.org/1999/xhtml"><![CDATA[${css}]]></style>`;
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
       `<foreignObject width="100%" height="100%">` +
-        `<style xmlns="http://www.w3.org/1999/xhtml">${css}</style>` +
-        bodyXml +
+        styleEl +
+        wrapperXml +
       `</foreignObject>` +
     `</svg>`;
 
-  // 4. Rasterize: SVG -> Image -> Canvas -> PNG blob.
-  const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-  const svgUrl = URL.createObjectURL(svgBlob);
-  try {
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = () => reject(new Error('SVG image failed to load'));
-      i.src = svgUrl;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    ctx.drawImage(img, 0, 0);
-    return await new Promise((resolve, reject) =>
-      canvas.toBlob((b) => b ? resolve(b) : reject(new Error('toBlob returned null')), 'image/png')
-    );
-  } finally {
-    URL.revokeObjectURL(svgUrl);
-  }
+  // 4. Rasterize: SVG -> Image -> Canvas -> PNG blob. Use a data: URL
+  //    instead of a blob URL — mobile rasterizers (especially iOS Safari
+  //    and older Android WebView) sometimes reject blob URLs for SVG-as-image
+  //    but accept data URLs of the same content.
+  const svgUrl =
+    'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('SVG image failed to load (foreignObject content may be malformed or too large)'));
+    i.src = svgUrl;
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.drawImage(img, 0, 0);
+
+  return await new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob((b) => {
+        if (b) resolve(b);
+        else reject(new Error('canvas.toBlob returned null (canvas may be tainted)'));
+      }, 'image/png');
+    } catch (e) {
+      // toBlob throws SecurityError on a tainted canvas in some browsers.
+      reject(new Error('canvas.toBlob threw: ' + (e.message || e.name)));
+    }
+  });
 }
 
 // Deliver the blob via the best available channel:
@@ -392,8 +411,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const blob = await captureScreenshotBlob();
       await deliverScreenshot(blob);
     } catch (err) {
-      console.error(err);
-      toast('Չհաջողվեց');
+      console.error('screenshot failed', err);
+      const detail = (err && (err.message || err.name)) || 'unknown';
+      toast('Չհաջողվեց: ' + detail);
     } finally {
       btn.disabled = false;
     }
