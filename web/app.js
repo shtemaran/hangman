@@ -322,34 +322,40 @@ function sparklineSvg(entry) {
     ? SPARK_W / 2
     : SPARK_PAD + (i / (a.length - 1)) * innerW;
 
-  // Connecting line through consecutive solved points only.
-  // Colors come from the Okabe-Ito colour-blind-safe palette:
-  //   solved/strong = blue       #0072B2
-  //   lost/weak     = vermillion #D55E00
-  const solvedPath = [];
-  a.forEach((att, i) => {
-    if (att.outcome !== 'solved') return;
+  // Y position per attempt: solved at its wrong/slots ratio, lost/skipped
+  // pinned to the bottom edge. The polyline below and the markers below
+  // both call this so the line always passes through every marker.
+  const yForAttempt = (att) => att.outcome === 'solved'
+    ? yFor(att.wrong / entry.slots)
+    : (SPARK_H - SPARK_PAD);
+
+  // Connecting line through every attempt in chronological order, so a
+  // failed or skipped attempt shows up as a dip in the trajectory rather
+  // than being jumped over. Neutral grey -- the coloured markers below
+  // carry the outcome semantics.
+  // Marker palette is Okabe-Ito CB-safe:
+  //   solved = blue       #0072B2
+  //   lost   = vermillion #D55E00
+  //   skipped = grey hollow circle
+  const path = a.map((att, i) => {
     const x = xFor(i);
-    const y = yFor(att.wrong / entry.slots);
-    solvedPath.push(`${solvedPath.length === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`);
-  });
-  const polyline = solvedPath.length >= 2
-    ? `<path d="${solvedPath.join(' ')}" stroke="#0072B2" stroke-width="1.5" fill="none" opacity="0.6"/>`
+    const y = yForAttempt(att);
+    return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const polyline = a.length >= 2
+    ? `<path d="${path}" stroke="#555" stroke-width="1.2" fill="none" opacity="0.45"/>`
     : '';
 
   // Markers per attempt.
   const markers = a.map((att, i) => {
     const x = xFor(i);
+    const y = yForAttempt(att);
     if (att.outcome === 'solved') {
-      const y = yFor(att.wrong / entry.slots);
       return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#0072B2"/>`;
     }
     if (att.outcome === 'lost') {
-      const y = SPARK_H - SPARK_PAD;
       return `<rect x="${(x - 2.5).toFixed(1)}" y="${(y - 2.5).toFixed(1)}" width="5" height="5" fill="#D55E00"/>`;
     }
-    // skipped
-    const y = SPARK_H - SPARK_PAD;
     return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="none" stroke="#888" stroke-width="1.2"/>`;
   }).join('');
 
