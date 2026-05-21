@@ -375,7 +375,15 @@ function sparklineSvg(entry) {
 const LC_W = 300;
 const LC_H = 110;
 const LC_PAD = 6;
-const LC_WINDOW = 10;
+
+// Smooth the per-attempt performance with a rolling average whose window
+// grows with how many attempts the user has. ~N/20 strikes a balance
+// between responsiveness and noise: light enough at 50 attempts (window
+// floors at 10), heavy enough at 1500+ attempts to actually flatten the
+// raw zig-zag. Floor and cap keep both extremes sensible.
+function learningCurveWindow(n) {
+  return Math.max(10, Math.min(200, Math.round(n / 20)));
+}
 
 function allAttemptsChronological(statsObj) {
   const out = [];
@@ -410,7 +418,8 @@ function learningCurveHtml(statsObj) {
   const attempts = allAttemptsChronological(statsObj);
   if (attempts.length < 5) return '';
   const perfs = attempts.map(performanceOf);
-  const avgs = rollingAverage(perfs, LC_WINDOW);
+  const window = learningCurveWindow(attempts.length);
+  const avgs = rollingAverage(perfs, window);
   const innerW = LC_W - LC_PAD * 2;
   const innerH = LC_H - LC_PAD * 2;
   const xFor = (i) => LC_PAD + (i / (attempts.length - 1)) * innerW;
@@ -422,14 +431,9 @@ function learningCurveHtml(statsObj) {
     `<line x1="${LC_PAD}" y1="${yFor(0.5).toFixed(1)}" x2="${LC_W - LC_PAD}" y2="${yFor(0.5).toFixed(1)}" stroke="#0002" stroke-width="0.5" stroke-dasharray="2 3"/>` +
     `<line x1="${LC_PAD}" y1="${yFor(1).toFixed(1)}" x2="${LC_W - LC_PAD}" y2="${yFor(1).toFixed(1)}" stroke="#0002" stroke-width="0.6"/>`;
 
-  // Faint dot per individual attempt so the smooth line has data behind it.
-  const dots = attempts.map((_, i) => {
-    const x = xFor(i).toFixed(1);
-    const y = yFor(perfs[i]).toFixed(1);
-    return `<circle cx="${x}" cy="${y}" r="1.2" fill="#0072B2" opacity="0.25"/>`;
-  }).join('');
-
-  // Rolling-average line on top.
+  // Rolling-average line. The per-attempt dot layer was dropped here: at
+  // 1000+ attempts those dots are visual noise -- the smoothed line is
+  // the signal we actually care about.
   const line = avgs.map((p, i) =>
     `${i === 0 ? 'M' : 'L'}${xFor(i).toFixed(1)},${yFor(p).toFixed(1)}`
   ).join(' ');
@@ -445,10 +449,9 @@ function learningCurveHtml(statsObj) {
       `</div>` +
       `<svg class="learning-curve" viewBox="0 0 ${LC_W} ${LC_H}" preserveAspectRatio="none" aria-hidden="true">` +
         guides +
-        dots +
         `<path d="${line}" stroke="#0072B2" stroke-width="2" fill="none"/>` +
       `</svg>` +
-      `<div class="stats-curve-foot">${attempts.length} փորձ · վերջին ${LC_WINDOW}-ի միջինը</div>` +
+      `<div class="stats-curve-foot">${attempts.length} փորձ · վերջին ${window}-ի միջինը</div>` +
     `</div>`
   );
 }
