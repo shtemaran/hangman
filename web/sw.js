@@ -1,10 +1,11 @@
-const CACHE = 'hangman-pwa-v16';
+const CACHE = 'hangman-pwa-v17';
 
 const ASSETS = [
   './',
   'index.html',
   'styles.css',
   'app.js',
+  'picker.js',
   'manifest.webmanifest',
   'assets/words.json',
   'assets/arnamu.ttf',

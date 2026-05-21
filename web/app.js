@@ -7,7 +7,7 @@ const KEYBOARD = [
   ['զ', 'ղ', 'ց', 'վ', 'բ', 'ն', 'մ', 'խ', 'ծ'],
 ];
 
-const SKIPS_BY_MODE = { easy: 4, medium: 2, hard: 0 };
+const SKIPS_BY_MODE = { easy: 4, medium: 2, hard: 0, learning: 2 };
 const MAX_LIVES = 14;
 const REVEAL_PAUSE_MS = 800;
 const LOSE_PAUSE_MS = 1500;
@@ -15,8 +15,7 @@ const LOSE_PAUSE_MS = 1500;
 const state = {
   mode: null,
   words: null,
-  questions: [],
-  index: -1,
+  picker: null,            // ShufflePicker or LearningPicker (see picker.js)
   current: null,
   slots: [],
   lives: MAX_LIVES,
@@ -39,15 +38,6 @@ function buildSlots(answer) {
     }
   }
   return slots;
-}
-
-function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 }
 
 async function loadWords() {
@@ -138,8 +128,9 @@ async function startGame(mode) {
   state.maxSkips = SKIPS_BY_MODE[mode];
   state.skipsUsed = 0;
   state.score = 0;
-  state.questions = shuffle(state.words);
-  state.index = -1;
+  state.picker = (mode === 'learning')
+    ? new window.LearningPicker(state.words, readStats())
+    : new window.ShufflePicker(state.words);
   document.getElementById('score').textContent = 'Հաշիվ: 0';
   buildKeyboard();
   buildSkipArrows();
@@ -202,12 +193,7 @@ function setPersonImage() {
 function nextWord() {
   state.lives = MAX_LIVES;
   state.locked = false;
-  state.index++;
-  if (state.index >= state.questions.length) {
-    state.questions = shuffle(state.words);
-    state.index = 0;
-  }
-  state.current = state.questions[state.index];
+  state.current = state.picker.pickNext(Date.now());
   state.slots = buildSlots(state.current.a);
   document.getElementById('clue').textContent = state.current.q;
   setPersonImage();
@@ -221,7 +207,9 @@ function onSkip() {
   const arrows = document.querySelectorAll('.skip-arrow');
   if (arrows[state.skipsUsed]) arrows[state.skipsUsed].classList.add('used');
   state.skipsUsed++;
-  recordAttempt(state.current, 'skipped', MAX_LIVES - state.lives);
+  const wrong = MAX_LIVES - state.lives;
+  recordAttempt(state.current, 'skipped', wrong);
+  state.picker.afterRound(state.current, 'skipped', wrong);
   nextWord();
 }
 
@@ -247,6 +235,7 @@ function onLetter(letter, btn) {
       for (const slot of state.slots) slot.revealed = true;
       renderSlots('wrong');
       recordAttempt(state.current, 'lost', MAX_LIVES);
+      state.picker.afterRound(state.current, 'lost', MAX_LIVES);
       setTimeout(loseGame, LOSE_PAUSE_MS);
       return;
     }
@@ -259,7 +248,9 @@ function onLetter(letter, btn) {
     state.score++;
     document.getElementById('score').textContent = `Հաշիվ: ${state.score}`;
     renderSlots('correct');
-    recordAttempt(state.current, 'solved', MAX_LIVES - state.lives);
+    const wrong = MAX_LIVES - state.lives;
+    recordAttempt(state.current, 'solved', wrong);
+    state.picker.afterRound(state.current, 'solved', wrong);
     setTimeout(nextWord, REVEAL_PAUSE_MS);
   }
 }
