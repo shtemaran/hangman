@@ -157,10 +157,11 @@ class LearningPicker extends Picker {
     const entry = this.stats[word.a];
     let avgPerf, lastSeenT, hasSolve;
     if (entry && entry.attempts.length) {
-      const slots = entry.slots;
-      avgPerf = entry.attempts.reduce(
-        (s, a) => s + window.attemptPerformance(a, slots), 0
-      ) / entry.attempts.length;
+      // Trailing-window mean from the shared helper -- keeps the picker
+      // aligned with the stats screen's mastery chip and "best-known
+      // first" sort. Lifetime mean would over-drill words the user used
+      // to struggle with but has since learned.
+      avgPerf = window.avgPerfRecent(entry);
       lastSeenT = entry.attempts[entry.attempts.length - 1].t;
       hasSolve = entry.attempts.some((a) => a.outcome === 'solved');
     } else {

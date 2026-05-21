@@ -290,6 +290,21 @@ function attemptPerformance(att, slots) {
   return 0.0; // skipped
 }
 
+// Trailing-window mean of attemptPerformance. Mastery is read off the
+// last MASTERY_WINDOW attempts only, not lifetime -- otherwise old losses
+// would drag a word's avgPerf down forever even after the user got good
+// at it. Sized to 3 by simulation: median ~4 attempts to first land in
+// "strong" once the user starts solving cleanly, with ~20% inter-attempt
+// class flicker (one in five attempts shifts the chip colour), which the
+// picker's freshness/decay terms absorb. Both the stats screen and the
+// learning picker call this.
+const MASTERY_WINDOW = 3;
+function avgPerfRecent(entry) {
+  if (!entry || !entry.attempts || entry.attempts.length === 0) return null;
+  const window = entry.attempts.slice(-MASTERY_WINDOW);
+  return window.reduce((s, a) => s + attemptPerformance(a, entry.slots), 0) / window.length;
+}
+
 function entryStats(entry) {
   const solves = entry.attempts.filter((a) => a.outcome === 'solved');
   const losses = entry.attempts.filter((a) => a.outcome === 'lost');
@@ -297,9 +312,7 @@ function entryStats(entry) {
   const solveRate = entry.attempts.length ? solves.length / entry.attempts.length : 0;
   const avgWrong = solves.length ? solves.reduce((s, a) => s + a.wrong, 0) / solves.length : null;
   const avgRatio = solves.length ? avgWrong / entry.slots : null;
-  const avgPerf = entry.attempts.length
-    ? entry.attempts.reduce((s, a) => s + attemptPerformance(a, entry.slots), 0) / entry.attempts.length
-    : null;
+  const avgPerf = avgPerfRecent(entry);
   return { solves, losses, skips, solveRate, avgWrong, avgRatio, avgPerf };
 }
 
