@@ -367,6 +367,92 @@ function sparklineSvg(entry) {
   return `<svg class="spark" viewBox="0 0 ${SPARK_W} ${SPARK_H}" width="${SPARK_W}" height="${SPARK_H}" aria-hidden="true">${guides}${polyline}${markers}</svg>`;
 }
 
+// Overall learning curve — a small line chart at the top of the stats
+// screen showing the rolling-10 average performance across every attempt
+// the user has ever made, sorted chronologically. Each attempt's
+// performance is normalised in [0, 1]: 1 = perfect solve (0 wrong), 0 =
+// lost or skipped (gave up).
+const LC_W = 300;
+const LC_H = 110;
+const LC_PAD = 6;
+const LC_WINDOW = 10;
+
+function allAttemptsChronological(statsObj) {
+  const out = [];
+  for (const entry of Object.values(statsObj)) {
+    for (const att of entry.attempts) {
+      out.push({ t: att.t, outcome: att.outcome, wrong: att.wrong, slots: entry.slots });
+    }
+  }
+  out.sort((a, b) => a.t - b.t);
+  return out;
+}
+
+function performanceOf(att) {
+  if (att.outcome !== 'solved') return 0;
+  const ratio = att.wrong / att.slots;
+  return 1 - Math.min(ratio, RATIO_CLAMP) / RATIO_CLAMP;
+}
+
+function rollingAverage(values, window) {
+  const out = new Array(values.length);
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    sum += values[i];
+    if (i >= window) sum -= values[i - window];
+    const count = Math.min(i + 1, window);
+    out[i] = sum / count;
+  }
+  return out;
+}
+
+function learningCurveHtml(statsObj) {
+  const attempts = allAttemptsChronological(statsObj);
+  if (attempts.length < 5) return '';
+  const perfs = attempts.map(performanceOf);
+  const avgs = rollingAverage(perfs, LC_WINDOW);
+  const innerW = LC_W - LC_PAD * 2;
+  const innerH = LC_H - LC_PAD * 2;
+  const xFor = (i) => LC_PAD + (i / (attempts.length - 1)) * innerW;
+  const yFor = (p) => LC_PAD + (1 - Math.max(0, Math.min(1, p))) * innerH;
+
+  // Horizontal guides at 0%, 50%, 100%.
+  const guides =
+    `<line x1="${LC_PAD}" y1="${yFor(0).toFixed(1)}" x2="${LC_W - LC_PAD}" y2="${yFor(0).toFixed(1)}" stroke="#0002" stroke-width="0.6"/>` +
+    `<line x1="${LC_PAD}" y1="${yFor(0.5).toFixed(1)}" x2="${LC_W - LC_PAD}" y2="${yFor(0.5).toFixed(1)}" stroke="#0002" stroke-width="0.5" stroke-dasharray="2 3"/>` +
+    `<line x1="${LC_PAD}" y1="${yFor(1).toFixed(1)}" x2="${LC_W - LC_PAD}" y2="${yFor(1).toFixed(1)}" stroke="#0002" stroke-width="0.6"/>`;
+
+  // Faint dot per individual attempt so the smooth line has data behind it.
+  const dots = attempts.map((_, i) => {
+    const x = xFor(i).toFixed(1);
+    const y = yFor(perfs[i]).toFixed(1);
+    return `<circle cx="${x}" cy="${y}" r="1.2" fill="#0072B2" opacity="0.25"/>`;
+  }).join('');
+
+  // Rolling-average line on top.
+  const line = avgs.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'}${xFor(i).toFixed(1)},${yFor(p).toFixed(1)}`
+  ).join(' ');
+
+  const current = avgs[avgs.length - 1];
+  const pct = Math.round(current * 100);
+
+  return (
+    `<div class="stats-curve">` +
+      `<div class="stats-curve-header">` +
+        `<span>Ընդհանուր առաջընթաց</span>` +
+        `<span class="stats-curve-pct">${pct}%</span>` +
+      `</div>` +
+      `<svg class="learning-curve" viewBox="0 0 ${LC_W} ${LC_H}" preserveAspectRatio="none" aria-hidden="true">` +
+        guides +
+        dots +
+        `<path d="${line}" stroke="#0072B2" stroke-width="2" fill="none"/>` +
+      `</svg>` +
+      `<div class="stats-curve-foot">${attempts.length} փորձ · վերջին ${LC_WINDOW}-ի միջինը</div>` +
+    `</div>`
+  );
+}
+
 function renderStats() {
   const list = document.getElementById('statsList');
   const empty = document.getElementById('statsEmpty');
@@ -389,7 +475,9 @@ function renderStats() {
     return B.attempts.length - A.attempts.length;
   });
 
-  list.innerHTML = entries.map(([answer, entry]) => {
+  const curveHtml = learningCurveHtml(all);
+
+  list.innerHTML = curveHtml + entries.map(([answer, entry]) => {
     const s = entryStats(entry);
     const cls = masteryClass(s.avgRatio);
     const avgWrongStr = s.avgWrong == null ? '—' : s.avgWrong.toFixed(1);
@@ -624,6 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('popstate', (e) => {
     const target = (e.state && e.state.screen) || 'menu';
     if (target === 'menu') renderMenuHighScores();
+    if (target === 'stats') renderStats();
     showScreen(target);
   });
   document.getElementById('shotBtn').addEventListener('click', async (e) => {

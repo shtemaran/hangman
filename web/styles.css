@@ -372,3 +372,35 @@ body {
   background: rgba(255, 255, 255, 0.35);
   border-radius: 4px;
 }
+
+/* Overall learning curve — sits at the top of the stats list. */
+.stats-curve {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.25);
+}
+.stats-curve-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.stats-curve-pct {
+  font-size: 22px;
+  color: #0072B2;
+  font-variant-numeric: tabular-nums;
+}
+.learning-curve {
+  width: 100%;
+  height: 110px;
+  display: block;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+}
+.stats-curve-foot {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.65;
+}
