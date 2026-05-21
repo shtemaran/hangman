@@ -284,6 +284,21 @@ const SPARK_H = 36;
 const SPARK_PAD = 4;
 const RATIO_CLAMP = 1.5;
 
+// Single source of truth for per-attempt performance, in [0, 1].
+// Solved attempts always score above unsolved ones -- a barely-solved
+// attempt still scores 0.6, comfortably above any loss (0.1) or skip
+// (0.0). Used by the per-word sparklines, the overall learning curve,
+// the mastery chip, and the "best-known first" sort, so all four views
+// agree on what "doing well" means.
+function attemptPerformance(att, slots) {
+  if (att.outcome === 'solved') {
+    const ratio = att.wrong / slots;
+    return 0.6 + 0.4 * (1 - Math.min(ratio, RATIO_CLAMP) / RATIO_CLAMP);
+  }
+  if (att.outcome === 'lost') return 0.1;
+  return 0.0; // skipped
+}
+
 function entryStats(entry) {
   const solves = entry.attempts.filter((a) => a.outcome === 'solved');
   const losses = entry.attempts.filter((a) => a.outcome === 'lost');
@@ -291,20 +306,23 @@ function entryStats(entry) {
   const solveRate = entry.attempts.length ? solves.length / entry.attempts.length : 0;
   const avgWrong = solves.length ? solves.reduce((s, a) => s + a.wrong, 0) / solves.length : null;
   const avgRatio = solves.length ? avgWrong / entry.slots : null;
-  return { solves, losses, skips, solveRate, avgWrong, avgRatio };
+  const avgPerf = entry.attempts.length
+    ? entry.attempts.reduce((s, a) => s + attemptPerformance(a, entry.slots), 0) / entry.attempts.length
+    : null;
+  return { solves, losses, skips, solveRate, avgWrong, avgRatio, avgPerf };
 }
 
 function weakness(entry) {
   if (!entry.attempts.length) return -Infinity;
   const s = entryStats(entry);
-  if (s.solves.length === 0) return Infinity; // never solved -> top
-  return (1 - s.solveRate) * 2 + s.avgRatio;
+  if (s.solves.length === 0) return Infinity; // never solved -> sort to one end
+  return 1 - s.avgPerf;
 }
 
-function masteryClass(avgRatio) {
-  if (avgRatio == null) return 'unknown';
-  if (avgRatio < 0.3) return 'strong';
-  if (avgRatio < 1.0) return 'medium';
+function masteryClass(avgPerf) {
+  if (avgPerf == null) return 'unknown';
+  if (avgPerf >= 0.85) return 'strong';
+  if (avgPerf >= 0.55) return 'medium';
   return 'weak';
 }
 
@@ -312,22 +330,19 @@ function sparklineSvg(entry) {
   const a = entry.attempts;
   const innerW = SPARK_W - SPARK_PAD * 2;
   const innerH = SPARK_H - SPARK_PAD * 2;
-  // Y position for a wrong/slots ratio, clamped at RATIO_CLAMP.
-  const yFor = (ratio) => {
-    const r = Math.min(ratio, RATIO_CLAMP) / RATIO_CLAMP;
-    return SPARK_PAD + r * innerH;
-  };
   // X position for the i-th attempt out of N (centers when N=1).
   const xFor = (i) => a.length === 1
     ? SPARK_W / 2
     : SPARK_PAD + (i / (a.length - 1)) * innerW;
 
-  // Y position per attempt: solved at its wrong/slots ratio, lost/skipped
-  // pinned to the bottom edge. The polyline below and the markers below
-  // both call this so the line always passes through every marker.
-  const yForAttempt = (att) => att.outcome === 'solved'
-    ? yFor(att.wrong / entry.slots)
-    : (SPARK_H - SPARK_PAD);
+  // Y position from performance score (1.0 = top, 0.0 = bottom edge).
+  // With the unified formula, solved attempts always fall in the upper
+  // 40% of the chart, losses sit ~10% from the bottom, skips sit at the
+  // bottom -- so the line touches the bottom only when the user actually
+  // gave up.
+  const yForPerf = (perf) =>
+    SPARK_PAD + (1 - Math.max(0, Math.min(1, perf))) * innerH;
+  const yForAttempt = (att) => yForPerf(attemptPerformance(att, entry.slots));
 
   // Connecting line through every attempt in chronological order, so a
   // failed or skipped attempt shows up as a dip in the trajectory rather
@@ -397,9 +412,10 @@ function allAttemptsChronological(statsObj) {
 }
 
 function performanceOf(att) {
-  if (att.outcome !== 'solved') return 0;
-  const ratio = att.wrong / att.slots;
-  return 1 - Math.min(ratio, RATIO_CLAMP) / RATIO_CLAMP;
+  // Thin wrapper over the shared formula; the learning curve's attempt
+  // objects already carry slots on themselves (set in
+  // allAttemptsChronological).
+  return attemptPerformance(att, att.slots);
 }
 
 function rollingAverage(values, window) {
@@ -425,10 +441,12 @@ function learningCurveHtml(statsObj) {
   const xFor = (i) => LC_PAD + (i / (attempts.length - 1)) * innerW;
   const yFor = (p) => LC_PAD + (1 - Math.max(0, Math.min(1, p))) * innerH;
 
-  // Horizontal guides at 0%, 50%, 100%.
+  // Horizontal guides. Top/bottom mark the [0, 1] range; the dashed
+  // mid-line sits at 0.6 -- the solve floor -- so above the dash means
+  // "mostly solving" and below means "mostly losing/skipping".
   const guides =
     `<line x1="${LC_PAD}" y1="${yFor(0).toFixed(1)}" x2="${LC_W - LC_PAD}" y2="${yFor(0).toFixed(1)}" stroke="#0002" stroke-width="0.6"/>` +
-    `<line x1="${LC_PAD}" y1="${yFor(0.5).toFixed(1)}" x2="${LC_W - LC_PAD}" y2="${yFor(0.5).toFixed(1)}" stroke="#0002" stroke-width="0.5" stroke-dasharray="2 3"/>` +
+    `<line x1="${LC_PAD}" y1="${yFor(0.6).toFixed(1)}" x2="${LC_W - LC_PAD}" y2="${yFor(0.6).toFixed(1)}" stroke="#0002" stroke-width="0.5" stroke-dasharray="2 3"/>` +
     `<line x1="${LC_PAD}" y1="${yFor(1).toFixed(1)}" x2="${LC_W - LC_PAD}" y2="${yFor(1).toFixed(1)}" stroke="#0002" stroke-width="0.6"/>`;
 
   // Rolling-average line. The per-attempt dot layer was dropped here: at
@@ -482,7 +500,7 @@ function renderStats() {
 
   list.innerHTML = curveHtml + entries.map(([answer, entry]) => {
     const s = entryStats(entry);
-    const cls = masteryClass(s.avgRatio);
+    const cls = masteryClass(s.avgPerf);
     const avgWrongStr = s.avgWrong == null ? '—' : s.avgWrong.toFixed(1);
     const summary =
       `${entry.attempts.length} փորձ · ` +
