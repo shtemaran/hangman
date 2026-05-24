@@ -37,7 +37,7 @@ const state = {
 // Console (registered against the hosted receiver.html URL). Until it is set,
 // the cast button stays hidden and the game behaves exactly as before.
 // ---------------------------------------------------------------------------
-const CAST_APP_ID = 'REPLACE_WITH_APP_ID';
+const CAST_APP_ID = '498C37EF';
 const CAST_NAMESPACE = 'urn:x-cast:com.shtemaran.hangman';
 
 let castContext = null;
