@@ -46,11 +46,24 @@
     #idle h1 { font-size: 8vh; font-weight: 700; }
     #idle p { font-size: 3.4vh; opacity: 0.75; }
 
+    /* Ambient 24-hour clock, always in the top-right corner (both the idle
+       splash and the gameplay board). */
+    #clock {
+      position: fixed;
+      top: 2.2vh;
+      right: 2.5vw;
+      font-size: 4vh;
+      font-weight: 700;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      z-index: 10;
+    }
+
     /* Gameplay board. */
     #board { flex-direction: column; padding: 3vh 4vw; gap: 2vh; }
     .top {
       display: flex;
-      justify-content: flex-end;
+      justify-content: flex-start;
       align-items: center;
       flex: 0 0 auto;
     }
@@ -105,6 +118,7 @@
   </style>
 </head>
 <body data-phase="idle">
+  <div id="clock"></div>
   <section id="idle">
     <img src="assets/sm_14.png" alt="">
     <h1>Կախաղան</h1>
@@ -142,6 +156,17 @@
     const clueEl = document.getElementById('clue');
     const slotsEl = document.getElementById('slots');
     const keyboardEl = document.getElementById('keyboard');
+    const clockEl = document.getElementById('clock');
+
+    // 24-hour wall clock from the Cast device's local time. getHours() is
+    // already 0-23, so no AM/PM conversion is needed.
+    const pad = (n) => (n < 10 ? '0' + n : '' + n);
+    function tickClock() {
+      const d = new Date();
+      clockEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
 
     function clampLives(n) {
       n = Number(n);
