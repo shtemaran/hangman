@@ -168,6 +168,26 @@
     tickClock();
     setInterval(tickClock, 1000);
 
+    // Keep the TV awake. A static board isn't "playback", so Google TV's
+    // ambient/screensaver mode takes over after ~10 min with no input. A
+    // screen wake lock is the web equivalent of Android TV's
+    // FLAG_KEEP_SCREEN_ON. The lock can be auto-released (e.g. on a
+    // visibility change), so re-acquire it whenever the page is visible.
+    let wakeLock = null;
+    async function keepAwake() {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } catch (e) {
+        console.warn('wakeLock request failed', e);
+      }
+    }
+    keepAwake();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && !wakeLock) keepAwake();
+    });
+
     function clampLives(n) {
       n = Number(n);
       if (!Number.isFinite(n)) return 14;
