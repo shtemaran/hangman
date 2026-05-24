@@ -12,11 +12,13 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Box palette taken straight from the phone (originally the Android
+       drawables): slate-blue default, green when solved, red when wrong. */
     :root {
       --ink: #2a1a05;
-      --key-bg: #c8a062;
-      --correct: #2e7d32;
-      --wrong: #c0392b;
+      --box: #2e4b5b;
+      --correct: #2a7907;
+      --wrong: #e51c2f;
     }
 
     html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -61,38 +63,40 @@
     .play { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4vh; min-width: 0; }
     #clue { font-size: 4.4vh; text-align: center; line-height: 1.25; }
 
-    #slots { display: flex; flex-wrap: wrap; gap: 1.4vw; justify-content: center; }
+    #slots { display: flex; flex-wrap: wrap; gap: 1vw; justify-content: center; }
+    /* Solid filled square with white text, matching the phone's letter slots
+       (#2e4b5b, no border, square corners). */
     .slot {
-      width: 6.4vh;
-      height: 8vh;
-      border: 0.4vh solid var(--ink);
-      border-radius: 1vh;
-      background: rgba(255, 255, 255, 0.28);
+      width: 7vh;
+      height: 7vh;
+      background: var(--box);
+      color: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 5vh;
+      font-size: 4.4vh;
       font-weight: 700;
     }
-    .slot.correct { border-color: var(--correct); color: var(--correct); }
-    .slot.wrong { border-color: var(--wrong); color: var(--wrong); }
+    .slot.correct { background: var(--correct); }
+    .slot.wrong { background: var(--wrong); }
 
     /* Display-only "ghost" keyboard mirroring the phone. */
     #keyboard { flex: 0 0 auto; display: flex; flex-direction: column; gap: 1.1vh; align-items: stretch; }
     .kb-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.9vw; }
     .key {
       height: 6.6vh;
-      border: 0.3vh solid var(--ink);
       border-radius: 1vh;
-      background: var(--key-bg);
+      background: var(--box);
+      color: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 3.4vh;
       font-weight: 700;
     }
-    .key.used { opacity: 0.32; }
-    .key.wrong { background: var(--wrong); color: #fff; border-color: var(--wrong); opacity: 1; }
+    /* Like the phone: a correctly-guessed key goes green, a wrong one red. */
+    .key.used { background: var(--correct); }
+    .key.wrong { background: var(--wrong); }
   </style>
 </head>
 <body data-phase="idle">
