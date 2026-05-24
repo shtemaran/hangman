@@ -59,6 +59,19 @@
       z-index: 10;
     }
 
+    /* Keep-awake video: must stay rendered (not display:none) for the OS to
+       count it as active playback, but effectively invisible. */
+    #keepawake {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      width: 2px;
+      height: 2px;
+      opacity: 0.01;
+      pointer-events: none;
+      z-index: 0;
+    }
+
     /* Gameplay board. */
     #board { flex-direction: column; padding: 3vh 4vw; gap: 2vh; }
     .top {
@@ -119,6 +132,7 @@
 </head>
 <body data-phase="idle">
   <div id="clock"></div>
+  <video id="keepawake" src="assets/keepawake.mp4" muted loop autoplay playsinline></video>
   <section id="idle">
     <img src="assets/happymarduk.png" alt="">
     <h1>Կախաղան</h1>
@@ -168,13 +182,19 @@
     tickClock();
     setInterval(tickClock, 1000);
 
-    // Keep the TV awake. A static board isn't "playback", so Google TV's
-    // ambient/screensaver mode takes over after ~10 min with no input. A
-    // screen wake lock is the web equivalent of Android TV's
-    // FLAG_KEEP_SCREEN_ON. The lock can be auto-released (e.g. on a
-    // visibility change), so re-acquire it whenever the page is visible.
+    // Keep the TV awake with two independent mechanisms, since support
+    // varies across Google TV builds. A static board isn't treated as
+    // "playback", so the ambient/screensaver mode otherwise takes over
+    // after ~10 min with no input.
+    //   1. A screen wake lock -- the web equivalent of FLAG_KEEP_SCREEN_ON.
+    //   2. A tiny silent looping video -- active VIDEO playback suppresses
+    //      ambient mode where the wake lock alone may not (a silent audio
+    //      loop does NOT count; only video does).
+    // The wake lock can be auto-released (e.g. on visibility change), so
+    // re-acquire it and re-kick the video whenever the page is visible.
+    const keepAwakeVideo = document.getElementById('keepawake');
     let wakeLock = null;
-    async function keepAwake() {
+    async function requestWakeLock() {
       if (!('wakeLock' in navigator)) return;
       try {
         wakeLock = await navigator.wakeLock.request('screen');
@@ -183,9 +203,19 @@
         console.warn('wakeLock request failed', e);
       }
     }
+    function playKeepAwake() {
+      if (keepAwakeVideo) keepAwakeVideo.play().catch((e) => console.warn('keepawake play failed', e));
+    }
+    function keepAwake() {
+      requestWakeLock();
+      playKeepAwake();
+    }
     keepAwake();
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && !wakeLock) keepAwake();
+      if (document.visibilityState === 'visible') {
+        if (!wakeLock) requestWakeLock();
+        playKeepAwake();
+      }
     });
 
     function clampLives(n) {
