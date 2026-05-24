@@ -81,8 +81,13 @@
     .slot.wrong { background: var(--wrong); }
 
     /* Display-only "ghost" keyboard mirroring the phone. */
-    #keyboard { flex: 0 0 auto; display: flex; flex-direction: column; gap: 1.1vh; align-items: stretch; }
+    #keyboard { flex: 0 0 auto; display: flex; flex-direction: column; gap: 0.9vw; align-items: stretch; }
     .kb-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.9vw; }
+    /* The 9-key bottom row keeps the same key width as the rows above
+       (1/10 of the row: full width minus the nine 0.9vw gaps, over 10) and
+       centers, leaving ~half a key of space on each side -- same as phone. */
+    .kb-row:last-child { display: flex; justify-content: center; gap: 0.9vw; }
+    .kb-row:last-child .key { flex: 0 0 calc((100% - 8.1vw) / 10); }
     .key {
       height: 6.6vh;
       border-radius: 1vh;
