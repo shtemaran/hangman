@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="hy">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Կախաղան — TV</title>
+  <style>
+    @font-face {
+      font-family: 'Arnamu';
+      src: url('assets/arnamu.ttf') format('truetype');
+      font-display: swap;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink: #2a1a05;
+      --key-bg: #c8a062;
+      --correct: #2e7d32;
+      --wrong: #c0392b;
+    }
+
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Arnamu', system-ui, sans-serif;
+      color: var(--ink);
+      background: #e8d8a0 url('assets/texture-tile.png') repeat;
+      /* Cast surface is 1280x720 logical regardless of TV resolution. */
+      display: flex;
+    }
+
+    /* Phase switching: idle splash vs. the gameplay board. */
+    #idle, #board { display: none; width: 100%; height: 100%; }
+    body[data-phase="idle"] #idle { display: flex; }
+    body:not([data-phase="idle"]) #board { display: flex; }
+
+    /* Idle splash — shown for menu / stats / game-over (never cast). */
+    #idle {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3vh;
+    }
+    #idle img { height: 38vh; }
+    #idle h1 { font-size: 8vh; font-weight: 700; }
+    #idle p { font-size: 3.4vh; opacity: 0.75; }
+
+    /* Gameplay board. */
+    #board { flex-direction: column; padding: 3vh 4vw; gap: 2vh; }
+    .top {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+    #score { font-size: 4.6vh; font-weight: 700; }
+
+    .main { flex: 1 1 auto; display: flex; align-items: center; gap: 4vw; min-height: 0; }
+    .gallows { flex: 0 0 30%; display: flex; align-items: center; justify-content: center; }
+    .gallows img { max-height: 46vh; max-width: 100%; }
+
+    .play { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4vh; min-width: 0; }
+    #clue { font-size: 4.4vh; text-align: center; line-height: 1.25; }
+
+    #slots { display: flex; flex-wrap: wrap; gap: 1.4vw; justify-content: center; }
+    .slot {
+      width: 6.4vh;
+      height: 8vh;
+      border: 0.4vh solid var(--ink);
+      border-radius: 1vh;
+      background: rgba(255, 255, 255, 0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 5vh;
+      font-weight: 700;
+    }
+    .slot.correct { border-color: var(--correct); color: var(--correct); }
+    .slot.wrong { border-color: var(--wrong); color: var(--wrong); }
+
+    /* Display-only "ghost" keyboard mirroring the phone. */
+    #keyboard { flex: 0 0 auto; display: flex; flex-direction: column; gap: 1.1vh; align-items: stretch; }
+    .kb-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.9vw; }
+    .key {
+      height: 6.6vh;
+      border: 0.3vh solid var(--ink);
+      border-radius: 1vh;
+      background: var(--key-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.4vh;
+      font-weight: 700;
+    }
+    .key.used { opacity: 0.32; }
+    .key.wrong { background: var(--wrong); color: #fff; border-color: var(--wrong); opacity: 1; }
+  </style>
+</head>
+<body data-phase="idle">
+  <section id="idle">
+    <img src="assets/sm_14.png" alt="">
+    <h1>Կախաղան</h1>
+    <p>Խաղը կառավարվում է հեռախոսից</p>
+  </section>
+
+  <section id="board">
+    <div class="top"><div id="score">Հաշիվ: 0</div></div>
+    <div class="main">
+      <div class="gallows"><img id="personImg" src="assets/sm_14.png" alt=""></div>
+      <div class="play">
+        <div id="clue"></div>
+        <div id="slots"></div>
+      </div>
+    </div>
+    <div id="keyboard"></div>
+  </section>
+
+  <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  <script>
+    // Must match CAST_NAMESPACE in app.js (the sender).
+    const CAST_NAMESPACE = 'urn:x-cast:com.shtemaran.hangman';
+
+    // Static layout, duplicated from app.js KEYBOARD. The last row has 9 keys;
+    // the 10-column grid leaves the 10th cell empty so columns line up.
+    const KEYBOARD = [
+      ['է', 'թ', 'փ', 'ձ', 'ջ', 'և', 'ր', 'չ', 'ճ', 'ժ'],
+      ['ք', 'ո', 'ե', 'ռ', 'տ', 'ը', 'ու', 'ի', 'օ', 'պ'],
+      ['ա', 'ս', 'դ', 'ֆ', 'գ', 'հ', 'յ', 'կ', 'լ', 'շ'],
+      ['զ', 'ղ', 'ց', 'վ', 'բ', 'ն', 'մ', 'խ', 'ծ'],
+    ];
+
+    const scoreEl = document.getElementById('score');
+    const personImg = document.getElementById('personImg');
+    const clueEl = document.getElementById('clue');
+    const slotsEl = document.getElementById('slots');
+    const keyboardEl = document.getElementById('keyboard');
+
+    function clampLives(n) {
+      n = Number(n);
+      if (!Number.isFinite(n)) return 14;
+      return Math.max(0, Math.min(14, n));
+    }
+
+    function renderSlots(snapshot) {
+      const cls = snapshot.phase === 'solved' ? ' correct'
+        : snapshot.phase === 'dead' ? ' wrong' : '';
+      slotsEl.innerHTML = '';
+      for (const sl of (snapshot.slots || [])) {
+        const d = document.createElement('div');
+        d.className = 'slot' + cls;
+        if (sl.r) d.textContent = sl.c;
+        slotsEl.appendChild(d);
+      }
+    }
+
+    function renderKeys(used, wrong) {
+      const u = new Set(used);
+      const w = new Set(wrong);
+      keyboardEl.innerHTML = '';
+      for (const row of KEYBOARD) {
+        const r = document.createElement('div');
+        r.className = 'kb-row';
+        for (const letter of row) {
+          const k = document.createElement('div');
+          k.className = 'key' + (w.has(letter) ? ' wrong' : u.has(letter) ? ' used' : '');
+          k.textContent = letter;
+          r.appendChild(k);
+        }
+        keyboardEl.appendChild(r);
+      }
+    }
+
+    function render(snapshot) {
+      if (!snapshot || snapshot.phase === 'idle') {
+        document.body.dataset.phase = 'idle';
+        return;
+      }
+      document.body.dataset.phase = snapshot.phase;
+      scoreEl.textContent = 'Հաշիվ: ' + (snapshot.score || 0);
+      personImg.src = 'assets/sm_' + clampLives(snapshot.lives) + '.png';
+      clueEl.textContent = snapshot.clue || '';
+      renderSlots(snapshot);
+      renderKeys(snapshot.used || [], snapshot.wrong || []);
+    }
+
+    const context = cast.framework.CastReceiverContext.getInstance();
+    context.addCustomMessageListener(CAST_NAMESPACE, (event) => render(event.data));
+
+    const options = new cast.framework.CastReceiverOptions();
+    // No media is ever played, so disable the media-idle shutdown that would
+    // otherwise close the receiver between turns.
+    options.disableIdleTimeout = true;
+    options.customNamespaces = {
+      [CAST_NAMESPACE]: cast.framework.system.MessageType.JSON,
+    };
+    context.start(options);
+  </script>
+</body>
+</html>

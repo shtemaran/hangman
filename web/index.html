@@ -39,6 +39,7 @@
       <div id="skipContainer" aria-label="Բաց թողնել"></div>
       <div class="topbar-right">
         <div id="score">Հաշիվ: 0</div>
+        <google-cast-launcher id="castBtn" aria-label="Հեռարձակել հեռուստացույցին" title="Հեռարձակել հեռուստացույցին"></google-cast-launcher>
         <button id="shotBtn" type="button" aria-label="Կիսվել նկարով" title="Կիսվել նկարով">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
@@ -78,6 +79,7 @@
     </div>
   </section>
 
+  <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
   <script src="picker.js"></script>
   <script src="app.js"></script>
 </body>

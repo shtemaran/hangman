@@ -25,6 +25,90 @@ const state = {
   locked: false,
 };
 
+// ---------------------------------------------------------------------------
+// Chromecast (Google Cast Web Sender).
+//
+// The phone stays the controller; only the live gameplay is cast. A compact
+// snapshot of the current word / keyboard / lives / score is pushed to a
+// custom Web Receiver (receiver.html) on every move. The menu, stats and the
+// game-over dialog are NOT cast -- the TV shows an idle splash for those.
+//
+// Set CAST_APP_ID to the Application ID from the Google Cast SDK Developer
+// Console (registered against the hosted receiver.html URL). Until it is set,
+// the cast button stays hidden and the game behaves exactly as before.
+// ---------------------------------------------------------------------------
+const CAST_APP_ID = 'REPLACE_WITH_APP_ID';
+const CAST_NAMESPACE = 'urn:x-cast:com.shtemaran.hangman';
+
+let castContext = null;
+let lastSnapshot = null;
+
+// The Cast SDK calls this global the moment the framework finishes loading.
+window['__onGCastApiAvailable'] = function (isAvailable) {
+  if (isAvailable && CAST_APP_ID !== 'REPLACE_WITH_APP_ID') initCast();
+};
+
+function initCast() {
+  castContext = cast.framework.CastContext.getInstance();
+  castContext.setOptions({
+    receiverApplicationId: CAST_APP_ID,
+    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+  });
+  // When a TV connects mid-game, push what we're currently showing so it
+  // doesn't sit blank until the next keypress.
+  castContext.addEventListener(
+    cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+    (e) => {
+      const S = cast.framework.SessionState;
+      if (e.sessionState === S.SESSION_STARTED || e.sessionState === S.SESSION_RESUMED) {
+        castDeliver(lastSnapshot || castSnapshot('idle'));
+      }
+    }
+  );
+}
+
+// Letters already played, split into correct guesses (dimmed on the TV) and
+// wrong guesses (shown red). Read straight off the rendered keyboard so the
+// game logic doesn't need to track guessed letters separately.
+function castKeyState() {
+  const used = [], wrong = [];
+  for (const k of document.querySelectorAll('.key')) {
+    if (k.classList.contains('wrong')) wrong.push(k.dataset.letter);
+    else if (k.disabled) used.push(k.dataset.letter);
+  }
+  return { used, wrong };
+}
+
+function castSnapshot(phase) {
+  const ks = castKeyState();
+  return {
+    v: 1,
+    phase, // 'idle' | 'playing' | 'solved' | 'dead'
+    clue: state.current ? state.current.q : '',
+    slots: state.slots.map((s) => ({ c: s.char, r: s.revealed })),
+    lives: state.lives,
+    score: state.score,
+    used: ks.used,
+    wrong: ks.wrong,
+  };
+}
+
+function castDeliver(snapshot) {
+  if (!castContext) return;
+  const session = castContext.getCurrentSession();
+  if (!session) return;
+  session.sendMessage(CAST_NAMESPACE, snapshot)
+    .catch((err) => console.warn('cast sendMessage failed', err));
+}
+
+// Build + remember the current snapshot, and deliver it if a TV is connected.
+// Safe to call when Cast is unavailable (no SDK / no session) -- it just
+// records the snapshot to replay on a later connect.
+function castSend(phase) {
+  lastSnapshot = castSnapshot(phase);
+  castDeliver(lastSnapshot);
+}
+
 // In Armenian, `ո` followed by `ւ` reads as the digraph `ու` and is shown in
 // one slot. Build one slot per visible character, merging `ո+ւ` pairs.
 function buildSlots(answer) {
@@ -70,6 +154,7 @@ function pushScreen(screen) {
 }
 
 function goToMenu() {
+  castSend('idle');
   const current = history.state && history.state.screen;
   if (current && current !== 'menu') {
     // Let the back navigation drive the screen change via popstate,
@@ -199,6 +284,7 @@ function nextWord() {
   setPersonImage();
   resetKeyboard();
   renderSlots();
+  castSend('playing');
 }
 
 function onSkip() {
@@ -236,6 +322,7 @@ function onLetter(letter, btn) {
       renderSlots('wrong');
       recordAttempt(state.current, 'lost', MAX_LIVES);
       state.picker.afterRound(state.current, 'lost', MAX_LIVES);
+      castSend('dead');
       setTimeout(loseGame, LOSE_PAUSE_MS);
       return;
     }
@@ -251,7 +338,10 @@ function onLetter(letter, btn) {
     const wrong = MAX_LIVES - state.lives;
     recordAttempt(state.current, 'solved', wrong);
     state.picker.afterRound(state.current, 'solved', wrong);
+    castSend('solved');
     setTimeout(nextWord, REVEAL_PAUSE_MS);
+  } else {
+    castSend('playing');
   }
 }
 
@@ -265,6 +355,7 @@ function loseGame() {
   document.getElementById('loseScore').textContent = state.score;
   document.getElementById('loseHigh').textContent = isHigh ? 'Նոր ռեկորդ!' : '';
   pushScreen('lose');
+  castSend('idle');
 }
 
 // Stats screen — list every encountered word with a small inline sparkline

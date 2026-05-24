@@ -116,6 +116,16 @@ body {
   align-items: center;
   gap: 12px;
 }
+/* Cast button. The framework manages its own visibility: it stays hidden
+   until a receiver app is configured (a real CAST_APP_ID) AND a Cast device
+   is on the network, so non-casting users never see it. */
+#castBtn {
+  --connected-color: #2a1a05;
+  --disconnected-color: #2a1a05;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+}
 #shotBtn {
   width: 34px;
   height: 34px;
