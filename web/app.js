@@ -65,6 +65,17 @@ function initCast() {
       }
     }
   );
+  // Mirror the cast button's visibility onto <body> so the game top bar only
+  // reserves corner space for it while a device is actually available.
+  const applyCastAvailability = () => {
+    const available = castContext.getCastState() !== cast.framework.CastState.NO_DEVICES_AVAILABLE;
+    document.body.classList.toggle('cast-available', available);
+  };
+  castContext.addEventListener(
+    cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+    applyCastAvailability
+  );
+  applyCastAvailability();
 }
 
 // Letters already played, split into correct guesses (dimmed on the TV) and

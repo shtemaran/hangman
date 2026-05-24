@@ -116,16 +116,26 @@ body {
   align-items: center;
   gap: 12px;
 }
-/* Cast button. The framework manages its own visibility: it stays hidden
-   until a receiver app is configured (a real CAST_APP_ID) AND a Cast device
-   is on the network, so non-casting users never see it. */
+/* Cast button. Fixed in the top-right corner so it's reachable on every
+   screen (menu/game/stats/lose). The framework manages its own visibility:
+   it stays hidden until a receiver app is configured (a real CAST_APP_ID)
+   AND a Cast device is on the network, so non-casting users never see it. */
 #castBtn {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  width: 28px;
+  height: 28px;
+  z-index: 50;
   --connected-color: #2a1a05;
   --disconnected-color: #2a1a05;
-  width: 26px;
-  height: 26px;
   cursor: pointer;
 }
+/* The game top bar is the only screen with content in that corner (the
+   screenshot button). Reserve room for the floating cast button there, but
+   only while it's actually shown (body.cast-available, set from the Cast
+   SDK), so there's no empty gap when no Cast device is present. */
+body.cast-available #game .topbar { padding-right: 48px; }
 #shotBtn {
   width: 34px;
   height: 34px;
