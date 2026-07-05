@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="hy">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Կախաղան — TV</title>
+  <style>
+    @font-face {
+      font-family: 'Arnamu';
+      src: url('assets/arnamu.ttf') format('truetype');
+      font-display: swap;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Box palette taken straight from the phone (originally the Android
+       drawables): slate-blue default, green when solved, red when wrong. */
+    :root {
+      --ink: #2a1a05;
+      --box: #2e4b5b;
+      --correct: #2a7907;
+      --wrong: #e51c2f;
+    }
+
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Arnamu', system-ui, sans-serif;
+      color: var(--ink);
+      background: #e8d8a0 url('assets/texture-tile.png') repeat;
+      /* Cast surface is 1280x720 logical regardless of TV resolution. */
+      display: flex;
+    }
+
+    /* Phase switching: idle splash vs. the gameplay board. */
+    #idle, #board { display: none; width: 100%; height: 100%; }
+    body[data-phase="idle"] #idle { display: flex; }
+    body:not([data-phase="idle"]) #board { display: flex; }
+
+    /* Idle splash — shown for menu / stats / game-over (never cast). */
+    #idle {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3vh;
+    }
+    #idle img { height: 38vh; }
+    #idle h1 { font-size: 8vh; font-weight: 700; }
+    #idle p { font-size: 3.4vh; opacity: 0.75; }
+
+    /* Ambient 24-hour clock, always in the top-right corner (both the idle
+       splash and the gameplay board). */
+    #clock {
+      position: fixed;
+      top: 2.2vh;
+      right: 2.5vw;
+      font-size: 4vh;
+      font-weight: 700;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      z-index: 10;
+    }
+
+    /* Gameplay board. */
+    #board { flex-direction: column; padding: 3vh 4vw; gap: 2vh; }
+    .top {
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+    #score { font-size: 4.6vh; font-weight: 700; }
+
+    .main { flex: 1 1 auto; display: flex; align-items: center; gap: 4vw; min-height: 0; }
+    .gallows { flex: 0 0 30%; display: flex; align-items: center; justify-content: center; }
+    .gallows img { max-height: 46vh; max-width: 100%; }
+
+    .play { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4vh; min-width: 0; }
+    #clue { font-size: 4.4vh; text-align: center; line-height: 1.25; }
+
+    #slots { display: flex; flex-wrap: wrap; gap: 1vw; justify-content: center; }
+    /* Solid filled square with white text, matching the phone's letter slots
+       (#2e4b5b, no border, square corners). */
+    .slot {
+      width: 7vh;
+      height: 7vh;
+      background: var(--box);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4.4vh;
+      font-weight: 700;
+    }
+    .slot.correct { background: var(--correct); }
+    .slot.wrong { background: var(--wrong); }
+
+    /* Display-only "ghost" keyboard mirroring the phone. */
+    #keyboard { flex: 0 0 auto; display: flex; flex-direction: column; gap: 0.9vw; align-items: stretch; }
+    .kb-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.9vw; }
+    /* The 9-key bottom row keeps the same key width as the rows above
+       (1/10 of the row: full width minus the nine 0.9vw gaps, over 10) and
+       centers, leaving ~half a key of space on each side -- same as phone. */
+    .kb-row:last-child { display: flex; justify-content: center; gap: 0.9vw; }
+    .kb-row:last-child .key { flex: 0 0 calc((100% - 8.1vw) / 10); }
+    .key {
+      height: 6.6vh;
+      border-radius: 1vh;
+      background: var(--box);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.4vh;
+      font-weight: 700;
+    }
+    /* Like the phone: a correctly-guessed key goes green, a wrong one red. */
+    .key.used { background: var(--correct); }
+    .key.wrong { background: var(--wrong); }
+  </style>
+</head>
+<body data-phase="idle">
+  <div id="clock"></div>
+  <section id="idle">
+    <img src="assets/happymarduk.png" alt="">
+    <h1>Կախաղան</h1>
+    <p>Խաղը կառավարվում է հեռախոսից</p>
+  </section>
+
+  <section id="board">
+    <div class="top"><div id="score">Հաշիվ: 0</div></div>
+    <div class="main">
+      <div class="gallows"><img id="personImg" src="assets/sm_14.png" alt=""></div>
+      <div class="play">
+        <div id="clue"></div>
+        <div id="slots"></div>
+      </div>
+    </div>
+    <div id="keyboard"></div>
+  </section>
+
+  <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  <script>
+    // Must match CAST_NAMESPACE in app.js (the sender).
+    const CAST_NAMESPACE = 'urn:x-cast:com.shtemaran.hangman';
+
+    // Static layout, duplicated from app.js KEYBOARD. The last row has 9 keys;
+    // the 10-column grid leaves the 10th cell empty so columns line up.
+    const KEYBOARD = [
+      ['է', 'թ', 'փ', 'ձ', 'ջ', 'և', 'ր', 'չ', 'ճ', 'ժ'],
+      ['ք', 'ո', 'ե', 'ռ', 'տ', 'ը', 'ու', 'ի', 'օ', 'պ'],
+      ['ա', 'ս', 'դ', 'ֆ', 'գ', 'հ', 'յ', 'կ', 'լ', 'շ'],
+      ['զ', 'ղ', 'ց', 'վ', 'բ', 'ն', 'մ', 'խ', 'ծ'],
+    ];
+
+    const scoreEl = document.getElementById('score');
+    const personImg = document.getElementById('personImg');
+    const clueEl = document.getElementById('clue');
+    const slotsEl = document.getElementById('slots');
+    const keyboardEl = document.getElementById('keyboard');
+    const clockEl = document.getElementById('clock');
+
+    // 24-hour wall clock from the Cast device's local time. getHours() is
+    // already 0-23, so no AM/PM conversion is needed.
+    const pad = (n) => (n < 10 ? '0' + n : '' + n);
+    function tickClock() {
+      const d = new Date();
+      clockEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    // Keep the TV awake. A static board isn't treated as "playback", so the
+    // ambient/screensaver mode otherwise takes over after ~10 min with no
+    // input. A screen wake lock is the web equivalent of FLAG_KEEP_SCREEN_ON.
+    // The lock can be auto-released (e.g. on visibility change), so
+    // re-acquire it whenever the page is visible again.
+    let wakeLock = null;
+    async function requestWakeLock() {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } catch (e) {
+        console.warn('wakeLock request failed', e);
+      }
+    }
+    requestWakeLock();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+    });
+
+    function clampLives(n) {
+      n = Number(n);
+      if (!Number.isFinite(n)) return 14;
+      return Math.max(0, Math.min(14, n));
+    }
+
+    function renderSlots(snapshot) {
+      const cls = snapshot.phase === 'solved' ? ' correct'
+        : snapshot.phase === 'dead' ? ' wrong' : '';
+      slotsEl.innerHTML = '';
+      for (const sl of (snapshot.slots || [])) {
+        const d = document.createElement('div');
+        d.className = 'slot' + cls;
+        if (sl.r) d.textContent = sl.c;
+        slotsEl.appendChild(d);
+      }
+    }
+
+    function renderKeys(used, wrong) {
+      const u = new Set(used);
+      const w = new Set(wrong);
+      keyboardEl.innerHTML = '';
+      for (const row of KEYBOARD) {
+        const r = document.createElement('div');
+        r.className = 'kb-row';
+        for (const letter of row) {
+          const k = document.createElement('div');
+          k.className = 'key' + (w.has(letter) ? ' wrong' : u.has(letter) ? ' used' : '');
+          k.textContent = letter;
+          r.appendChild(k);
+        }
+        keyboardEl.appendChild(r);
+      }
+    }
+
+    function render(snapshot) {
+      if (!snapshot || snapshot.phase === 'idle') {
+        document.body.dataset.phase = 'idle';
+        return;
+      }
+      document.body.dataset.phase = snapshot.phase;
+      scoreEl.textContent = 'Հաշիվ: ' + (snapshot.score || 0);
+      personImg.src = 'assets/sm_' + clampLives(snapshot.lives) + '.png';
+      clueEl.textContent = snapshot.clue || '';
+      renderSlots(snapshot);
+      renderKeys(snapshot.used || [], snapshot.wrong || []);
+    }
+
+    const context = cast.framework.CastReceiverContext.getInstance();
+    context.addCustomMessageListener(CAST_NAMESPACE, (event) => render(event.data));
+
+    const options = new cast.framework.CastReceiverOptions();
+    // No media is ever played, so disable the media-idle shutdown that would
+    // otherwise close the receiver between turns.
+    options.disableIdleTimeout = true;
+    options.customNamespaces = {
+      [CAST_NAMESPACE]: cast.framework.system.MessageType.JSON,
+    };
+    context.start(options);
+  </script>
+</body>
+</html>
