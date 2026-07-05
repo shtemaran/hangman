@@ -20,16 +20,14 @@ function createRig(svg, T){
 
   // ---- hierarchy: win > body > head > {brows, eyes, mouth} ----
   const body=mkG('rig-body'), head=mkG('rig-head');
-  ['win-eyes-l','win-eyes-r','win-eyes-l-blink','win-eyes-r-blink','win-mouth'].forEach(id=>{const e=$(id); if(e)e.remove();});
+  ['win-eyes-l','win-eyes-r','win-eyes-l-blink','win-eyes-r-blink','win-mouth','win-brows-l','win-brows-r']
+    .forEach(id=>{const e=$(id); if(e)e.remove();});
   head.appendChild($('win-head'));
-  $('win-brows-l')&&head.appendChild($('win-brows-l'));
-  $('win-brows-r')&&head.appendChild($('win-brows-r'));
-  const eyeG={}, eyeP={};
-  for(const s of ['l','r']){
-    const g=mkG('rig-eye-'+s), pth=document.createElementNS(NS,'path');
-    pth.setAttribute('fill','#081C1A'); pth.id='rig-eye-'+s+'-shape';
-    g.appendChild(pth); head.appendChild(g); eyeG[s]=g; eyeP[s]=pth;
-  }
+  const mkFeat=kind=>{ const g=mkG('rig-'+kind), pth=document.createElementNS(NS,'path');
+    pth.setAttribute('fill','#081C1A'); pth.id='rig-'+kind+'-shape'; g.appendChild(pth); head.appendChild(g); return [g,pth]; };
+  const eyeG={}, eyeP={}, browG={}, browP={};
+  for(const s of ['l','r']) [browG[s],browP[s]]=mkFeat('brow-'+s);
+  for(const s of ['l','r']) [eyeG[s],eyeP[s]]=mkFeat('eye-'+s);
   const mouthP=document.createElementNS(NS,'path'); mouthP.setAttribute('fill','#081C1A'); mouthP.id='rig-mouth';
   head.appendChild(mouthP);
   ['win-torso','win-hands-l','win-hands-r'].forEach(id=>$(id)&&body.appendChild($(id)));
@@ -38,11 +36,13 @@ function createRig(svg, T){
   // ---- blend-shape helpers (all targets corresponded to the 'happy' topology) ----
   const lerpA=(A,B,t)=>A.map((p,i)=>[p[0]+(B[i][0]-p[0])*t, p[1]+(B[i][1]-p[1])*t]);
   const pathD=P=>{let d=''; for(let i=0;i<P.length;i++) d+=(i?'L':'M')+P[i][0].toFixed(2)+','+P[i][1].toFixed(2)+' '; return d+'Z';};
-  const exprShape=(slot,e)=>{ const t=T[slot]; return e>=0 ? lerpA(t.neutral,t.happy,e)
-                                                            : (t.sad?lerpA(t.neutral,t.sad,-e):t.neutral); };
-  const setEye=(s,e,openW)=>{ let P=exprShape('eye-'+s,e); if(openW>0)P=lerpA(P,T['eye-'+s].shut,openW); eyeP[s].setAttribute('d',pathD(P)); };
-  const setMouth=e=>mouthP.setAttribute('d',pathD(exprShape('mouth',e)));
-  setEye('l',1,0); setEye('r',1,0); setMouth(1);
+  const valence=(slot,e)=>{ const t=T[slot]; return e>=0 ? lerpA(t.neutral,t.happy,e)
+                                                          : (t.sad?lerpA(t.neutral,t.sad,-e):t.neutral); };
+  const emo=(slot,e,su)=>{ let P=valence(slot,e); if(su>0 && T[slot].surprised) P=lerpA(P,T[slot].surprised,su); return P; };
+  const setEye=(s,e,su,openW)=>{ let P=emo('eye-'+s,e,su); if(openW>0)P=lerpA(P,T['eye-'+s].shut,openW); eyeP[s].setAttribute('d',pathD(P)); };
+  const setMouth=(e,su)=>mouthP.setAttribute('d',pathD(emo('mouth',e,su)));
+  const setBrow=(s,e,su)=>browP[s].setAttribute('d',pathD(emo('brow-'+s,e,su)));
+  setBrow('l',1,0); setBrow('r',1,0); setEye('l',1,0,0); setEye('r',1,0,0); setMouth(1,0);
 
   // ---- pivots from geometry ----
   const bb=el=>el.getBBox();
@@ -55,8 +55,7 @@ function createRig(svg, T){
   const cen=P=>{let x=0,y=0; for(const q of P){x+=q[0];y+=q[1];} return [x/P.length,y/P.length];};
   const eyeBase={l:cen(T['eye-l'].happy), r:cen(T['eye-r'].happy)};
   const mouthBase=cen(T.mouth.happy);
-  const browBase={};
-  for(const s of ['l','r']){ const g=$('win-brows-'+s); if(g){const b=bb(g); browBase[s]=[b.x+b.width/2,b.y+b.height/2];} }
+  const browBase={l:cen(T['brow-l'].happy), r:cen(T['brow-r'].happy)};
   const tbb=$('win-torso')?bb($('win-torso')):{x:0,y:0,width:0,height:0};
   const torsoC=[tbb.x+tbb.width/2, tbb.y+tbb.height/2];
 
@@ -64,14 +63,14 @@ function createRig(svg, T){
               constrainEye:0, constrainMouth:1,      // 0=free swing to edge, 1=sphere-constrained
               browDrop:3, breathScale:0.02, torsoExpand:0.14, breathBob:3, lean:6 };
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
-    const e=clamp(p.expr,-1,1);
-    setEye('l', e, 1-clamp(p.eyeOpenL,0,1));
-    setEye('r', e, 1-clamp(p.eyeOpenR,0,1));
-    setMouth(e);
+    const e=clamp(p.expr,-1,1), su=clamp(p.surprise,0,1);
+    setEye('l', e, su, 1-clamp(p.eyeOpenL,0,1));
+    setEye('r', e, su, 1-clamp(p.eyeOpenR,0,1));
+    setMouth(e,su); setBrow('l',e,su); setBrow('r',e,su);
     // gaze/head-turn: reproject each face feature on the head sphere (translate + foreshorten)
     const yaw=clamp(p.gazeX,-1,1)*cfg.gazeYaw*Math.PI/180, pitch=clamp(p.gazeY,-1,1)*cfg.gazePitch*Math.PI/180;
     // k = latitude constraint: 0 = free swing (reaches silhouette), 1 = true sphere (stays inside at its height)
@@ -88,8 +87,8 @@ function createRig(svg, T){
     X(eyeG.l, sphere(eyeBase.l[0],eyeBase.l[1],0,cfg.constrainEye));
     X(eyeG.r, sphere(eyeBase.r[0],eyeBase.r[1],0,cfg.constrainEye));
     X(mouthP, sphere(mouthBase[0],mouthBase[1],0,cfg.constrainMouth));
-    $('win-brows-l')&&X($('win-brows-l'), sphere(browBase.l[0],browBase.l[1],(1-clamp(p.eyeOpenL,0,1))*cfg.browDrop,cfg.constrainEye));
-    $('win-brows-r')&&X($('win-brows-r'), sphere(browBase.r[0],browBase.r[1],(1-clamp(p.eyeOpenR,0,1))*cfg.browDrop,cfg.constrainEye));
+    X(browG.l, sphere(browBase.l[0],browBase.l[1],(1-clamp(p.eyeOpenL,0,1))*cfg.browDrop,cfg.constrainEye));
+    X(browG.r, sphere(browBase.r[0],browBase.r[1],(1-clamp(p.eyeOpenR,0,1))*cfg.browDrop,cfg.constrainEye));
     const bob=(p.breath-0.5)*cfg.breathBob;
     X(head, `translate(${p.headX*cfg.headX} ${p.headY*cfg.headY-bob}) rotate(${p.headTilt*cfg.headTilt} ${neck[0]} ${neck[1]})`);
     const bs=1+(p.breath-0.5)*cfg.breathScale;           // head: old subtle vertical breath
