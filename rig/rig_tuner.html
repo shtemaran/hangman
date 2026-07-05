@@ -19,6 +19,9 @@
   <div class="row">
     <button id="blink">Blink</button><button id="winkl">Wink L</button><button id="winkr">Wink R</button>
   </div>
+  <div class="row">hands:
+    <button data-hands="neutral">neutral</button><button data-hands="thumbsup">thumbs-up</button>
+  </div>
   <label><input type="checkbox" id="idle"> idle (procedural life)</label>
   <button id="reset">reset pose</button>
   <div class="panel" id="ranges"><h4>Ranges (tune, then export)</h4></div>
@@ -60,6 +63,7 @@ Promise.all([
   document.getElementById('blink').onclick=()=>rig.blink();
   document.getElementById('winkl').onclick=()=>rig.wink('l');
   document.getElementById('winkr').onclick=()=>rig.wink('r');
+  document.querySelectorAll('[data-hands]').forEach(b=>b.onclick=()=>rig.p.hands=b.dataset.hands);
   document.getElementById('idle').onchange=e=>rig.idle(e.target.checked);
   document.getElementById('reset').onclick=()=>{PARAMS.forEach(([k,mn,mx,dv])=>{rig.p[k]=dv;pInputs[k].value=dv;pInputs[k].dispatchEvent(new Event('input'));});};
   document.getElementById('export').onclick=()=>{document.getElementById('out').textContent=JSON.stringify(rig.cfg,null,1);};

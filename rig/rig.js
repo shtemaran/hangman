@@ -30,7 +30,9 @@ function createRig(svg, T){
   for(const s of ['l','r']) [eyeG[s],eyeP[s]]=mkFeat('eye-'+s);
   const mouthP=document.createElementNS(NS,'path'); mouthP.setAttribute('fill','#081C1A'); mouthP.id='rig-mouth';
   head.appendChild(mouthP);
-  ['win-torso','win-hands-l','win-hands-r'].forEach(id=>$(id)&&body.appendChild($(id)));
+  $('win-torso')&&body.appendChild($('win-torso'));
+  const srcArmR=$('win-hands-r'), srcArmL=$('win-hands-l');   // sources for hand poses (cloned, then removed)
+  srcArmR&&srcArmR.remove(); srcArmL&&srcArmL.remove();
   body.appendChild(head); rootG.appendChild(body);
 
   // ---- blend-shape helpers (all targets corresponded to the 'happy' topology) ----
@@ -59,11 +61,22 @@ function createRig(svg, T){
   const tbb=$('win-torso')?bb($('win-torso')):{x:0,y:0,width:0,height:0};
   const torsoC=[tbb.x+tbb.width/2, tbb.y+tbb.height/2];
 
+  // ---- hand poses (swap, not morph): neutral (mirrored right arm) / thumbsup ----
+  const arms={};
+  const armPose=(name,leftEl,rightEl)=>{ const g=mkG('rig-hands-'+name);
+    if(rightEl)g.appendChild(rightEl); if(leftEl)g.appendChild(leftEl);
+    body.insertBefore(g, head); arms[name]=g; };
+  if(srcArmR){
+    const mL=mkG('rig-arm-mirror'); mL.setAttribute('transform',`translate(${2*headC[0]} 0) scale(-1 1)`); mL.appendChild(srcArmR.cloneNode(true));
+    armPose('neutral', mL, srcArmR.cloneNode(true));
+    armPose('thumbsup', srcArmL?srcArmL.cloneNode(true):null, srcArmR.cloneNode(true));
+  }
+
   const cfg={ headX:22, headY:16, headTilt:7, gazeYaw:38, gazePitch:26,
               constrainEye:0, constrainMouth:1,      // 0=free swing to edge, 1=sphere-constrained
               browDrop:3, breathScale:0.02, torsoExpand:0.14, breathBob:3, lean:6 };
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
@@ -95,6 +108,7 @@ function createRig(svg, T){
     X(body, `rotate(${p.bodyLean*cfg.lean} ${feet[0]} ${feet[1]}) translate(${belly[0]} ${belly[1]}) scale(1 ${bs}) translate(${-belly[0]} ${-belly[1]})`);
     const tsx=1+(p.breath-0.5)*cfg.torsoExpand;          // torso: expand horizontally with the inhale
     $('win-torso')&&X($('win-torso'), `translate(${torsoC[0]} ${torsoC[1]}) scale(${tsx} 1) translate(${-torsoC[0]} ${-torsoC[1]})`);
+    for(const n in arms) arms[n].style.display=(p.hands===n)?'':'none';   // hand pose swap
   }
   let raf=requestAnimationFrame(function loop(){flush(); raf=requestAnimationFrame(loop);});
 
