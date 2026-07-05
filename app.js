@@ -14,15 +14,20 @@ const KEYBOARD = [
 const FREE_PCT_BY_MODE = { easy: 0.30, medium: 0.15, hard: 0, learning: 0 };
 
 // Adaptive hints (learning mode). A word's "help" is derived live from its
-// history: an accumulator that ratchets DOWN on a clean solve, UP on a loss,
-// and drifts UP while idle (forgetting). It may dip below 0 -- an overlearning
-// buffer (floored at -HELP_CAP) that time must climb back through before hints
-// return, so a solidly-known word resists forgetting. All tunable:
-const HELP_DOWN = 0.34;            // clean solve (0 wrong) -> raw -= this
-const HELP_UP = 0.5;              // a loss -> raw += this
-const HELP_CAP = 2;              // deepest the buffer goes (raw floor)
+// history: an accumulator nudged by each round's performance -- a good solve
+// pushes it DOWN (toward no hints), a poor one or a loss pushes it UP -- and it
+// drifts UP while idle (forgetting). Performance is graded by mistakes per
+// guessed letter (attemptPerformance), so a near-clean solve still counts, not
+// only a flawless one -- and a flawless solve earns an extra bonus on top, so a
+// perfect first try is strongly rewarded. It may dip below 0 -- an overlearning
+// buffer (floored at -HELP_CAP) that time climbs back through before hints
+// return. All tunable:
+const HELP_RATE = 1.25;           // step = HELP_RATE * (performance - HELP_PIVOT)
+const HELP_PIVOT = 0.6;           // solve floor: >= progresses, a loss (0.1) regresses
+const HELP_PERFECT_BONUS = 0.7;   // extra downward step for a flawless (0-wrong) solve
+const HELP_CAP = 2;               // deepest the buffer goes (raw floor)
 const HELP_DRIFT_PER_DAY = 0.01;  // forgetting: raw drifts up per idle day
-const HELP_GAMMA = 3;            // display only: concavity of raw -> strength%
+const HELP_GAMMA = 3;             // display only: concavity of raw -> strength%
 const MAX_LIVES = 14;
 const REVEAL_PAUSE_MS = 800;
 const LOSE_PAUSE_MS = 1500;
@@ -516,21 +521,23 @@ function avgPerfRecent(entry) {
 
 // ── Adaptive hints ─────────────────────────────────────────────────────────
 // Derive a word's help level fresh from its history each time -- no stored
-// state, so the formula can be retuned freely. Replay the staircase over the
-// word's learning attempts (legacy attempts predate the `mode` field and were
-// unassisted, so they count too): clean solve -> raw down, loss -> raw up,
-// messy solve holds; then drift up for time idle since the last attempt.
-// Returns raw in [-HELP_CAP, 1].
+// state, so the formula can be retuned freely. Replay over the word's learning
+// attempts (legacy attempts predate the `mode` field and were unassisted, so
+// they count too), grading each by performance (mistakes per guessed letter),
+// so imperfect solves still move it; then drift up for time idle since the last
+// attempt. Returns raw in [-HELP_CAP, 1].
 function deriveHelp(entry, now) {
   let raw = 1;
   let lastT = null;
   for (const a of entry.attempts) {
     if (a.mode !== 'learning' && a.mode != null) continue;
-    if (a.outcome === 'solved' && a.wrong === 0) raw -= HELP_DOWN;
-    else if (a.outcome === 'lost') raw += HELP_UP;
+    lastT = a.t;
+    if (a.outcome !== 'solved' && a.outcome !== 'lost') continue; // ignore legacy skips
+    let step = HELP_RATE * (attemptPerformance(a, entry.slots) - HELP_PIVOT);
+    if (a.outcome === 'solved' && a.wrong === 0) step += HELP_PERFECT_BONUS;
+    raw -= step;
     if (raw < -HELP_CAP) raw = -HELP_CAP;
     else if (raw > 1) raw = 1;
-    lastT = a.t;
   }
   if (lastT != null) {
     const days = Math.max(0, (now - lastT) / 86400000);
