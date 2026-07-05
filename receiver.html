@@ -102,6 +102,8 @@
     .kb-row:last-child { display: flex; justify-content: center; gap: 0.9vw; }
     .kb-row:last-child .key { flex: 0 0 calc((100% - 8.1vw) / 10); }
     .key {
+      position: relative;
+      overflow: hidden;
       height: 6.6vh;
       border-radius: 1vh;
       background: var(--box);
@@ -112,9 +114,33 @@
       font-size: 3.4vh;
       font-weight: 700;
     }
-    /* Like the phone: a correctly-guessed key goes green, a wrong one red. */
+    /* Like the phone: a correctly-guessed key goes green, a wrong one red.
+       Wrong and free carry a color-independent cue too (a corner-to-corner
+       slash / a dotted texture) so they read for colorblind viewers and in
+       grayscale. Key box is ~47px on the 720p cast surface, so the phone's
+       pixel values match here. */
     .key.used { background: var(--correct); }
-    .key.wrong { background: var(--wrong); }
+    .key.wrong {
+      background-color: var(--wrong);
+      background-image: linear-gradient(to top right,
+        transparent calc(50% - 1.6px),
+        rgba(255, 255, 255, 0.94) calc(50% - 1.6px),
+        rgba(255, 255, 255, 0.94) calc(50% + 1.6px),
+        transparent calc(50% + 1.6px));
+    }
+    .key.free {
+      background-color: #e0a52e;
+      color: #241a06;
+    }
+    .key.free::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      border: 9px solid transparent;
+      border-top-color: rgba(36, 26, 6, 0.6);
+      border-right-color: rgba(36, 26, 6, 0.6);
+    }
   </style>
 </head>
 <body data-phase="idle">
@@ -206,16 +232,18 @@
       }
     }
 
-    function renderKeys(used, wrong) {
+    function renderKeys(used, wrong, free) {
       const u = new Set(used);
       const w = new Set(wrong);
+      const f = new Set(free);
       keyboardEl.innerHTML = '';
       for (const row of KEYBOARD) {
         const r = document.createElement('div');
         r.className = 'kb-row';
         for (const letter of row) {
           const k = document.createElement('div');
-          k.className = 'key' + (w.has(letter) ? ' wrong' : u.has(letter) ? ' used' : '');
+          const mod = w.has(letter) ? ' wrong' : f.has(letter) ? ' free' : u.has(letter) ? ' used' : '';
+          k.className = 'key' + mod;
           k.textContent = letter;
           r.appendChild(k);
         }
@@ -233,7 +261,7 @@
       personImg.src = 'assets/sm_' + clampLives(snapshot.lives) + '.png';
       clueEl.textContent = snapshot.clue || '';
       renderSlots(snapshot);
-      renderKeys(snapshot.used || [], snapshot.wrong || []);
+      renderKeys(snapshot.used || [], snapshot.wrong || [], snapshot.free || []);
     }
 
     const context = cast.framework.CastReceiverContext.getInstance();
