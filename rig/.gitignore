@@ -1,0 +1,6 @@
+# throwaway validation renders & intermediate exports (regenerable via tools/)
+out/*
+!out/.gitkeep
+traces/*
+!traces/.gitkeep
+tools/__pycache__/
