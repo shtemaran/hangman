@@ -564,20 +564,6 @@ function entryStats(entry) {
   return { solves, losses, skips, solveRate, avgWrong, avgRatio, avgPerf };
 }
 
-function weakness(entry) {
-  if (!entry.attempts.length) return -Infinity;
-  const s = entryStats(entry);
-  if (s.solves.length === 0) return Infinity; // never solved -> sort to one end
-  return 1 - s.avgPerf;
-}
-
-function masteryClass(avgPerf) {
-  if (avgPerf == null) return 'unknown';
-  if (avgPerf >= 0.85) return 'strong';
-  if (avgPerf >= 0.55) return 'medium';
-  return 'weak';
-}
-
 function sparklineSvg(entry) {
   const a = entry.attempts;
   const innerW = SPARK_W - SPARK_PAD * 2;
@@ -739,12 +725,14 @@ function renderStats() {
   }
   empty.style.display = 'none';
 
-  // Best-known first. Lowest weakness sorts to the top; never-solved words
-  // (weakness = Infinity) end up at the bottom.
-  entries.sort(([, A], [, B]) => {
-    const wa = weakness(A);
-    const wb = weakness(B);
-    if (wa !== wb) return wa - wb;
+  // Derive each word's help level once (cheap: one pass over its attempts),
+  // then sort best-known first -- higher strength = lower raw, so raw ascending.
+  const now = Date.now();
+  const rawBy = new Map();
+  for (const [answer, entry] of entries) rawBy.set(answer, deriveHelp(entry, now));
+  entries.sort(([a, A], [b, B]) => {
+    const ra = rawBy.get(a), rb = rawBy.get(b);
+    if (ra !== rb) return ra - rb;
     return B.attempts.length - A.attempts.length;
   });
 
@@ -752,15 +740,18 @@ function renderStats() {
 
   list.innerHTML = curveHtml + entries.map(([answer, entry]) => {
     const s = entryStats(entry);
-    const cls = masteryClass(s.avgPerf);
+    const raw = rawBy.get(answer);
+    const hints = Math.max(0, Math.min(entry.slots - 2,
+      Math.round(helpFraction(raw) * FREE_PCT_BY_MODE.easy * entry.slots)));
     const avgWrongStr = s.avgWrong == null ? '—' : s.avgWrong.toFixed(1);
+    const strengthStr = `ուժ ${strengthPct(raw)}%` + (hints > 0 ? ` · ${hints} տառ` : '');
     const summary =
       `${entry.attempts.length} փորձ · ` +
       `միջ. ${avgWrongStr}`;
     return (
       `<div class="stats-row">` +
         `<div class="stats-text">` +
-          `<div class="stats-answer">${answer}<span class="stats-chip ${cls}"></span></div>` +
+          `<div class="stats-answer">${answer}<span class="stats-strength">${strengthStr}</span></div>` +
           `<div class="stats-clue">${entry.clue}</div>` +
           `<div class="stats-summary">${summary}</div>` +
         `</div>` +
