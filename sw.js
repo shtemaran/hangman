@@ -1,4 +1,4 @@
-const CACHE = 'hangman-pwa-v24';
+const CACHE = 'hangman-pwa-v25';
 
 const ASSETS = [
   './',
