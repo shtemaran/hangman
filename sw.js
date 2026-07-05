@@ -1,4 +1,4 @@
-const CACHE = 'hangman-pwa-v23';
+const CACHE = 'hangman-pwa-v24';
 
 const ASSETS = [
   './',
@@ -9,8 +9,6 @@ const ASSETS = [
   'manifest.webmanifest',
   'assets/words.json',
   'assets/arnamu.ttf',
-  'assets/arrow.png',
-  'assets/arrow_disabled.png',
   'assets/texture-tile.png',
   'assets/happymarduk.png',
   'assets/sm_0.png',

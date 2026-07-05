@@ -96,19 +96,18 @@ body {
   padding: 8px 12px;
   gap: 8px;
 }
-#skipContainer {
+#freeInfo {
   display: flex;
+  align-items: center;
   gap: 4px;
-  cursor: pointer;
-}
-.skip-arrow {
-  width: 34px;
+  min-width: 34px;
   height: 34px;
-  background: url('assets/arrow.png') center / contain no-repeat;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f3e2c7;
+  opacity: 0.9;
 }
-.skip-arrow.used {
-  background-image: url('assets/arrow_disabled.png');
-}
+#freeInfo:empty { visibility: hidden; }
 #score { font-size: 20px; font-weight: 700; }
 
 .topbar-right {
@@ -241,8 +240,11 @@ body.cast-available #game .topbar { padding-right: 48px; }
   flex: 0 0 calc((100% - 36px) / 10);
 }
 .key {
+  position: relative;
+  overflow: hidden;
   font: inherit;
   font-size: 18px;
+  font-weight: 700;
   padding: 10px 0;
   background: #2e4b5b;
   color: #fff;
@@ -255,8 +257,34 @@ body.cast-available #game .topbar { padding-right: 48px; }
 /* Pressed-correct (Android: state_enabled=false in keyboard_button.xml) */
 .key:disabled { background: #2a7907; cursor: default; }
 /* Pressed-wrong (Android: button_invalid.xml swapped in on a wrong guess).
-   Source-ordered after :disabled so it wins when both apply. */
-.key.wrong { background: #e51c2f; }
+   Source-ordered after :disabled so it wins when both apply. A corner-to-corner
+   slash (gradient band) is a color-independent cue -- readable for colorblind
+   users and in grayscale, where red vs green fills are indistinguishable. */
+.key.wrong {
+  background-color: #e51c2f;
+  background-image: linear-gradient(to top right,
+    transparent calc(50% - 1.6px),
+    rgba(255, 255, 255, 0.94) calc(50% - 1.6px),
+    rgba(255, 255, 255, 0.94) calc(50% + 1.6px),
+    transparent calc(50% + 1.6px));
+}
+/* Free (pre-revealed) letter: amber with a dark glyph and a folded-corner mark
+   -- distinct from a guessed key by shape, not just hue. The fold sits in the
+   corner, clear of the centered glyph at any key width. Source-ordered after
+   :disabled/.wrong so it wins for a disabled free key. */
+.key.free {
+  background-color: #e0a52e;
+  color: #241a06;
+}
+.key.free::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  border: 9px solid transparent;
+  border-top-color: rgba(36, 26, 6, 0.6);
+  border-right-color: rgba(36, 26, 6, 0.6);
+}
 
 /* Lose dialog */
 #lose {

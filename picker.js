@@ -39,7 +39,7 @@ class Picker {
    * Notify the picker that a round ended with `outcome` and `wrong` guesses.
    * Default: no-op (suits ShufflePicker; LearningPicker overrides).
    */
-  afterRound(_word, _outcome, _wrong) {}
+  afterRound(_word, _outcome, _wrong, _free) {}
 }
 
 class ShufflePicker extends Picker {
@@ -126,8 +126,9 @@ class LearningPicker extends Picker {
     return fallback;
   }
 
-  afterRound(word, outcome, wrong) {
+  afterRound(word, outcome, wrong, free) {
     const slots = window.buildSlots(word.a).length;
+    free = free || 0;
 
     // Mirror the attempt into the in-memory stats so the next pick scores
     // it as if localStorage had been updated. (recordAttempt() in app.js
@@ -139,11 +140,11 @@ class LearningPicker extends Picker {
     }
     entry.clue = word.q;
     entry.slots = slots;
-    entry.attempts.push({ t: Date.now(), outcome, wrong });
+    entry.attempts.push({ t: Date.now(), outcome, wrong, free, mode: 'learning' });
 
     // Maybe queue a loopback. At most one fire per word per session.
     if (this.sessLoopbacked.has(word.a) || this.loopback.has(word.a)) return;
-    const perf = window.attemptPerformance({ outcome, wrong }, slots);
+    const perf = window.attemptPerformance({ outcome, wrong, free }, slots);
     if (perf < LM_STRUGGLE_THRESHOLD) {
       const span = LM_LOOPBACK_MAX - LM_LOOPBACK_MIN + 1;
       const fireAt = this.round + LM_LOOPBACK_MIN + Math.floor(Math.random() * span);
