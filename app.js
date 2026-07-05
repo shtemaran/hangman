@@ -7,11 +7,27 @@ const KEYBOARD = [
   ['զ', 'ղ', 'ց', 'վ', 'բ', 'ն', 'մ', 'խ', 'ծ'],
 ];
 
-// Difficulty now grants "free letters": a fraction of the word's slots is
-// pre-revealed at the start of each round (no cost, no lives). See
-// pickFreeLetters for how the fraction maps to actual letters. Learning mode
-// stays honest (no freebies) for now.
+// Difficulty grants "free letters": a fraction of the word's slots is
+// pre-revealed at the start of each round (no cost, no lives). Easy/medium/hard
+// are fixed; learning mode is adaptive (see deriveHelp) and caps at the easy
+// level. See pickFreeLetters for how the fraction maps to actual letters.
 const FREE_PCT_BY_MODE = { easy: 0.30, medium: 0.15, hard: 0, learning: 0 };
+
+// Adaptive hints (learning mode). A word's "help" is derived live from its
+// history: an accumulator nudged by each round's performance -- a good solve
+// pushes it DOWN (toward no hints), a poor one or a loss pushes it UP -- and it
+// drifts UP while idle (forgetting). Performance is graded by mistakes per
+// guessed letter (attemptPerformance), so a near-clean solve still counts, not
+// only a flawless one -- and a flawless solve earns an extra bonus on top, so a
+// perfect first try is strongly rewarded. It may dip below 0 -- an overlearning
+// buffer (floored at -HELP_CAP) that time climbs back through before hints
+// return. All tunable:
+const HELP_RATE = 1.25;           // step = HELP_RATE * (performance - HELP_PIVOT)
+const HELP_PIVOT = 0.6;           // solve floor: >= progresses, a loss (0.1) regresses
+const HELP_PERFECT_BONUS = 0.7;   // extra downward step for a flawless (0-wrong) solve
+const HELP_CAP = 2;               // deepest the buffer goes (raw floor)
+const HELP_DRIFT_PER_DAY = 0.01;  // forgetting: raw drifts up per idle day
+const HELP_GAMMA = 3;             // display only: concavity of raw -> strength%
 const MAX_LIVES = 14;
 const REVEAL_PAUSE_MS = 800;
 const LOSE_PAUSE_MS = 1500;
@@ -359,7 +375,14 @@ function nextWord() {
 // as used (so they read as "used" on the board and on a connected TV). Free
 // reveals cost no lives and never trip the win check (>=2 slots stay hidden).
 function applyFreeLetters() {
-  const free = pickFreeLetters(state.slots, FREE_PCT_BY_MODE[state.mode] || 0);
+  let pct = FREE_PCT_BY_MODE[state.mode] || 0;
+  if (state.mode === 'learning') {
+    // Amount tracks how well this word is known, capped at the easy level.
+    const entry = state.picker.stats && state.picker.stats[state.current.a];
+    const raw = entry ? deriveHelp(entry, Date.now()) : 1;
+    pct = helpFraction(raw) * FREE_PCT_BY_MODE.easy;
+  }
+  const free = pickFreeLetters(state.slots, pct);
   let freeSlots = 0;
   for (const slot of state.slots) {
     if (free.has(slot.char)) { slot.revealed = true; freeSlots++; }
@@ -496,6 +519,47 @@ function avgPerfRecent(entry) {
   return num / den;
 }
 
+// ── Adaptive hints ─────────────────────────────────────────────────────────
+// Derive a word's help level fresh from its history each time -- no stored
+// state, so the formula can be retuned freely. Replay over the word's learning
+// attempts (legacy attempts predate the `mode` field and were unassisted, so
+// they count too), grading each by performance (mistakes per guessed letter),
+// so imperfect solves still move it; then drift up for time idle since the last
+// attempt. Returns raw in [-HELP_CAP, 1].
+function deriveHelp(entry, now) {
+  let raw = 1;
+  let lastT = null;
+  for (const a of entry.attempts) {
+    if (a.mode !== 'learning' && a.mode != null) continue;
+    lastT = a.t;
+    if (a.outcome !== 'solved' && a.outcome !== 'lost') continue; // ignore legacy skips
+    let step = HELP_RATE * (attemptPerformance(a, entry.slots) - HELP_PIVOT);
+    if (a.outcome === 'solved' && a.wrong === 0) step += HELP_PERFECT_BONUS;
+    raw -= step;
+    if (raw < -HELP_CAP) raw = -HELP_CAP;
+    else if (raw > 1) raw = 1;
+  }
+  if (lastT != null) {
+    const days = Math.max(0, (now - lastT) / 86400000);
+    raw = Math.min(1, raw + HELP_DRIFT_PER_DAY * days);
+  }
+  return raw;
+}
+
+// The buffer doesn't give "negative hints", so the fraction used for hints is
+// raw clamped to [0, 1].
+function helpFraction(raw) {
+  return Math.max(0, Math.min(1, raw));
+}
+
+// Display only: map raw in [-HELP_CAP, 1] to a friendly 0..100% "strength",
+// concave so early clean solves visibly move the needle (5 in a row ~= 92%).
+// Higher = better known.
+function strengthPct(raw) {
+  const p = (1 - raw) / (1 + HELP_CAP);
+  return Math.round(100 * (1 - Math.pow(1 - p, HELP_GAMMA)));
+}
+
 function entryStats(entry) {
   const solves = entry.attempts.filter((a) => a.outcome === 'solved');
   const losses = entry.attempts.filter((a) => a.outcome === 'lost');
@@ -505,20 +569,6 @@ function entryStats(entry) {
   const avgRatio = solves.length ? avgWrong / entry.slots : null;
   const avgPerf = avgPerfRecent(entry);
   return { solves, losses, skips, solveRate, avgWrong, avgRatio, avgPerf };
-}
-
-function weakness(entry) {
-  if (!entry.attempts.length) return -Infinity;
-  const s = entryStats(entry);
-  if (s.solves.length === 0) return Infinity; // never solved -> sort to one end
-  return 1 - s.avgPerf;
-}
-
-function masteryClass(avgPerf) {
-  if (avgPerf == null) return 'unknown';
-  if (avgPerf >= 0.85) return 'strong';
-  if (avgPerf >= 0.55) return 'medium';
-  return 'weak';
 }
 
 function sparklineSvg(entry) {
@@ -682,12 +732,14 @@ function renderStats() {
   }
   empty.style.display = 'none';
 
-  // Best-known first. Lowest weakness sorts to the top; never-solved words
-  // (weakness = Infinity) end up at the bottom.
-  entries.sort(([, A], [, B]) => {
-    const wa = weakness(A);
-    const wb = weakness(B);
-    if (wa !== wb) return wa - wb;
+  // Derive each word's help level once (cheap: one pass over its attempts),
+  // then sort best-known first -- higher strength = lower raw, so raw ascending.
+  const now = Date.now();
+  const rawBy = new Map();
+  for (const [answer, entry] of entries) rawBy.set(answer, deriveHelp(entry, now));
+  entries.sort(([a, A], [b, B]) => {
+    const ra = rawBy.get(a), rb = rawBy.get(b);
+    if (ra !== rb) return ra - rb;
     return B.attempts.length - A.attempts.length;
   });
 
@@ -695,15 +747,18 @@ function renderStats() {
 
   list.innerHTML = curveHtml + entries.map(([answer, entry]) => {
     const s = entryStats(entry);
-    const cls = masteryClass(s.avgPerf);
+    const raw = rawBy.get(answer);
+    const hints = Math.max(0, Math.min(entry.slots - 2,
+      Math.round(helpFraction(raw) * FREE_PCT_BY_MODE.easy * entry.slots)));
     const avgWrongStr = s.avgWrong == null ? '—' : s.avgWrong.toFixed(1);
+    const strengthStr = `ուժ ${strengthPct(raw)}%` + (hints > 0 ? ` · ${hints} տառ` : '');
     const summary =
       `${entry.attempts.length} փորձ · ` +
       `միջ. ${avgWrongStr}`;
     return (
       `<div class="stats-row">` +
         `<div class="stats-text">` +
-          `<div class="stats-answer">${answer}<span class="stats-chip ${cls}"></span></div>` +
+          `<div class="stats-answer">${answer}<span class="stats-strength">${strengthStr}</span></div>` +
           `<div class="stats-clue">${entry.clue}</div>` +
           `<div class="stats-summary">${summary}</div>` +
         `</div>` +
