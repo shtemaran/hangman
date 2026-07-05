@@ -7,11 +7,22 @@ const KEYBOARD = [
   ['զ', 'ղ', 'ց', 'վ', 'բ', 'ն', 'մ', 'խ', 'ծ'],
 ];
 
-// Difficulty now grants "free letters": a fraction of the word's slots is
-// pre-revealed at the start of each round (no cost, no lives). See
-// pickFreeLetters for how the fraction maps to actual letters. Learning mode
-// stays honest (no freebies) for now.
+// Difficulty grants "free letters": a fraction of the word's slots is
+// pre-revealed at the start of each round (no cost, no lives). Easy/medium/hard
+// are fixed; learning mode is adaptive (see deriveHelp) and caps at the easy
+// level. See pickFreeLetters for how the fraction maps to actual letters.
 const FREE_PCT_BY_MODE = { easy: 0.30, medium: 0.15, hard: 0, learning: 0 };
+
+// Adaptive hints (learning mode). A word's "help" is derived live from its
+// history: an accumulator that ratchets DOWN on a clean solve, UP on a loss,
+// and drifts UP while idle (forgetting). It may dip below 0 -- an overlearning
+// buffer (floored at -HELP_CAP) that time must climb back through before hints
+// return, so a solidly-known word resists forgetting. All tunable:
+const HELP_DOWN = 0.34;            // clean solve (0 wrong) -> raw -= this
+const HELP_UP = 0.5;              // a loss -> raw += this
+const HELP_CAP = 2;              // deepest the buffer goes (raw floor)
+const HELP_DRIFT_PER_DAY = 0.01;  // forgetting: raw drifts up per idle day
+const HELP_GAMMA = 3;            // display only: concavity of raw -> strength%
 const MAX_LIVES = 14;
 const REVEAL_PAUSE_MS = 800;
 const LOSE_PAUSE_MS = 1500;
@@ -359,7 +370,14 @@ function nextWord() {
 // as used (so they read as "used" on the board and on a connected TV). Free
 // reveals cost no lives and never trip the win check (>=2 slots stay hidden).
 function applyFreeLetters() {
-  const free = pickFreeLetters(state.slots, FREE_PCT_BY_MODE[state.mode] || 0);
+  let pct = FREE_PCT_BY_MODE[state.mode] || 0;
+  if (state.mode === 'learning') {
+    // Amount tracks how well this word is known, capped at the easy level.
+    const entry = state.picker.stats && state.picker.stats[state.current.a];
+    const raw = entry ? deriveHelp(entry, Date.now()) : 1;
+    pct = helpFraction(raw) * FREE_PCT_BY_MODE.easy;
+  }
+  const free = pickFreeLetters(state.slots, pct);
   let freeSlots = 0;
   for (const slot of state.slots) {
     if (free.has(slot.char)) { slot.revealed = true; freeSlots++; }
@@ -494,6 +512,45 @@ function avgPerfRecent(entry) {
   }
   if (den === 0) return attemptPerformance(window[window.length - 1], entry.slots);
   return num / den;
+}
+
+// ── Adaptive hints ─────────────────────────────────────────────────────────
+// Derive a word's help level fresh from its history each time -- no stored
+// state, so the formula can be retuned freely. Replay the staircase over the
+// word's learning attempts (legacy attempts predate the `mode` field and were
+// unassisted, so they count too): clean solve -> raw down, loss -> raw up,
+// messy solve holds; then drift up for time idle since the last attempt.
+// Returns raw in [-HELP_CAP, 1].
+function deriveHelp(entry, now) {
+  let raw = 1;
+  let lastT = null;
+  for (const a of entry.attempts) {
+    if (a.mode !== 'learning' && a.mode != null) continue;
+    if (a.outcome === 'solved' && a.wrong === 0) raw -= HELP_DOWN;
+    else if (a.outcome === 'lost') raw += HELP_UP;
+    if (raw < -HELP_CAP) raw = -HELP_CAP;
+    else if (raw > 1) raw = 1;
+    lastT = a.t;
+  }
+  if (lastT != null) {
+    const days = Math.max(0, (now - lastT) / 86400000);
+    raw = Math.min(1, raw + HELP_DRIFT_PER_DAY * days);
+  }
+  return raw;
+}
+
+// The buffer doesn't give "negative hints", so the fraction used for hints is
+// raw clamped to [0, 1].
+function helpFraction(raw) {
+  return Math.max(0, Math.min(1, raw));
+}
+
+// Display only: map raw in [-HELP_CAP, 1] to a friendly 0..100% "strength",
+// concave so early clean solves visibly move the needle (5 in a row ~= 92%).
+// Higher = better known.
+function strengthPct(raw) {
+  const p = (1 - raw) / (1 + HELP_CAP);
+  return Math.round(100 * (1 - Math.pow(1 - p, HELP_GAMMA)));
 }
 
 function entryStats(entry) {
