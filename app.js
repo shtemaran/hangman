@@ -264,28 +264,29 @@ function writeStats(obj) {
   try { localStorage.setItem(STATS_KEY, JSON.stringify(obj)); }
   catch (e) { console.warn('stats write failed', e); }
 }
-function recordAttempt(word, outcome, wrong) {
+// `free` = how many slots were pre-revealed for free this round, and `mode`
+// = the difficulty played. Both are stored raw (not folded into a score) so
+// the performance formulas can be re-tuned later without losing information.
+function recordAttempt(word, outcome, wrong, free) {
   if (!word) return;
   const all = readStats();
   const entry = all[word.a] || (all[word.a] = { clue: word.q, slots: buildSlots(word.a).length, attempts: [] });
   entry.clue = word.q;
   entry.slots = buildSlots(word.a).length;
-  entry.attempts.push({ t: Date.now(), outcome, wrong });
+  entry.attempts.push({ t: Date.now(), outcome, wrong, free: free || 0, mode: state.mode });
   writeStats(all);
 }
 
 async function startGame(mode) {
   await loadWords();
   state.mode = mode;
-  state.maxSkips = SKIPS_BY_MODE[mode];
-  state.skipsUsed = 0;
   state.score = 0;
+  state.letterRank = computeLetterRank(state.words);
   state.picker = (mode === 'learning')
     ? new window.LearningPicker(state.words, readStats())
     : new window.ShufflePicker(state.words);
   document.getElementById('score').textContent = 'Հաշիվ: 0';
   buildKeyboard();
-  buildSkipArrows();
   pushScreen('game');
   nextWord();
 }
@@ -396,8 +397,8 @@ function onLetter(letter, btn) {
       state.locked = true;
       for (const slot of state.slots) slot.revealed = true;
       renderSlots('wrong');
-      recordAttempt(state.current, 'lost', MAX_LIVES);
-      state.picker.afterRound(state.current, 'lost', MAX_LIVES);
+      recordAttempt(state.current, 'lost', MAX_LIVES, state.freeCount);
+      state.picker.afterRound(state.current, 'lost', MAX_LIVES, state.freeCount);
       castSend('dead');
       setTimeout(loseGame, LOSE_PAUSE_MS);
       return;
@@ -412,8 +413,8 @@ function onLetter(letter, btn) {
     document.getElementById('score').textContent = `Հաշիվ: ${state.score}`;
     renderSlots('correct');
     const wrong = MAX_LIVES - state.lives;
-    recordAttempt(state.current, 'solved', wrong);
-    state.picker.afterRound(state.current, 'solved', wrong);
+    recordAttempt(state.current, 'solved', wrong, state.freeCount);
+    state.picker.afterRound(state.current, 'solved', wrong, state.freeCount);
     castSend('solved');
     setTimeout(nextWord, REVEAL_PAUSE_MS);
   } else {
@@ -448,13 +449,24 @@ const RATIO_CLAMP = 1.5;
 // (0.0). Used by the per-word sparklines, the overall learning curve,
 // the mastery chip, and the "best-known first" sort, so all four views
 // agree on what "doing well" means.
+// Tier 1: normalize wrong guesses by the letters the user actually had to
+// guess (slots minus the free/pre-revealed ones), not the whole word -- so
+// free letters don't make wrong guesses look cheaper than they were.
 function attemptPerformance(att, slots) {
   if (att.outcome === 'solved') {
-    const ratio = att.wrong / slots;
+    const guessed = Math.max(1, slots - (att.free || 0));
+    const ratio = att.wrong / guessed;
     return 0.6 + 0.4 * (1 - Math.min(ratio, RATIO_CLAMP) / RATIO_CLAMP);
   }
   if (att.outcome === 'lost') return 0.1;
-  return 0.0; // skipped
+  return 0.0; // skipped (legacy)
+}
+
+// Fraction of a word the user faced unaided (1 = no help, →0 = mostly gifted).
+// Used to weight an attempt's contribution to mastery.
+function unassistedWeight(att, slots) {
+  if (!slots) return 1;
+  return Math.max(0, Math.min(1, (slots - (att.free || 0)) / slots));
 }
 
 // Trailing-window mean of attemptPerformance. Mastery is read off the
@@ -466,10 +478,22 @@ function attemptPerformance(att, slots) {
 // picker's freshness/decay terms absorb. Both the stats screen and the
 // learning picker call this.
 const MASTERY_WINDOW = 3;
+// Tier 2: weight each recent attempt by how much of the word the user faced
+// unaided, so a heavily-gifted round barely nudges mastery -- free letters
+// reveal the *hardest* letters, so an assisted solve is weak evidence of real
+// command. With no help (free = 0, e.g. learning mode + all legacy data) every
+// weight is 1 and this reduces to the plain trailing mean.
 function avgPerfRecent(entry) {
   if (!entry || !entry.attempts || entry.attempts.length === 0) return null;
   const window = entry.attempts.slice(-MASTERY_WINDOW);
-  return window.reduce((s, a) => s + attemptPerformance(a, entry.slots), 0) / window.length;
+  let num = 0, den = 0;
+  for (const a of window) {
+    const w = unassistedWeight(a, entry.slots);
+    num += attemptPerformance(a, entry.slots) * w;
+    den += w;
+  }
+  if (den === 0) return attemptPerformance(window[window.length - 1], entry.slots);
+  return num / den;
 }
 
 function entryStats(entry) {
@@ -575,7 +599,7 @@ function allAttemptsChronological(statsObj) {
   const out = [];
   for (const entry of Object.values(statsObj)) {
     for (const att of entry.attempts) {
-      out.push({ t: att.t, outcome: att.outcome, wrong: att.wrong, slots: entry.slots });
+      out.push({ t: att.t, outcome: att.outcome, wrong: att.wrong, free: att.free || 0, slots: entry.slots });
     }
   }
   out.sort((a, b) => a.t - b.t);
