@@ -1,0 +1,69 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>marduk_semantic.svg — compositor</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:1.2rem;display:flex;gap:1.5rem;flex-wrap:wrap}
+  #stage{width:390px;height:337px;border:1px solid #ccc;flex:none}
+  #stage svg{width:100%;height:100%}
+  .panel{display:flex;flex-direction:column;gap:.7rem;font-size:14px;min-width:230px}
+  .row{display:flex;gap:.5rem;align-items:center;justify-content:space-between}
+  select{font-size:13px}
+  button{font-size:13px;padding:.25rem .6rem}
+  h4{margin:.3rem 0 0}
+</style>
+<div id="stage">loading…</div>
+<div class="panel">
+  <div class="row"><b>Preset:</b>
+    <span><button data-preset="play">Play</button>
+    <button data-preset="win">Win</button>
+    <button data-preset="mix1">Sad+smile</button>
+    <button data-preset="mix2">Happy+frown</button></span>
+  </div>
+  <h4>Progressive reveal (play)</h4>
+  <label>mistake level k = <output id="v">0</output>
+    <input id="lvl" type="range" min="0" max="14" value="0" style="width:100%"></label>
+  <h4>Feature source</h4>
+  <div id="slots"></div>
+</div>
+<script>
+const SLOTS=['bars','head','hands-l','hands-r','torso','brows-l','brows-r','eyes-l','eyes-r','mouth'];
+let svg, LOSE, WIN;
+function setSrc(slot,src){
+  document.getElementById('lose-'+slot).style.display = (src==='lose')?'':'none';
+  document.getElementById('win-'+slot).style.display  = (src==='win') ?'':'none';
+}
+function slotSel(slot){return document.querySelector(`select[data-slot="${slot}"]`);}
+function applyAll(){SLOTS.forEach(s=>setSrc(s,slotSel(s).value));applyLevel();}
+function applyLevel(){
+  const k=+document.getElementById('lvl').value;
+  document.getElementById('v').textContent=k;
+  LOSE.querySelectorAll('[data-step]').forEach(p=>{
+    p.style.display=(+p.getAttribute('data-step')>=k)?'':'none';
+  });
+}
+const PRESETS={
+  play:  Object.fromEntries(SLOTS.map(s=>[s,'lose'])),
+  win:   Object.fromEntries(SLOTS.map(s=>[s,'win'])),
+  mix1:  {...Object.fromEntries(SLOTS.map(s=>[s,'lose'])), mouth:'win'},                 // sad face, happy smile
+  mix2:  {...Object.fromEntries(SLOTS.map(s=>[s,'win'])),  mouth:'lose', 'brows-l':'lose','brows-r':'lose'}, // happy face, sad frown+brows
+};
+function preset(name){const p=PRESETS[name];SLOTS.forEach(s=>slotSel(s).value=p[s]);applyAll();}
+
+fetch('marduk_semantic.svg').then(r=>r.text()).then(t=>{
+  document.getElementById('stage').innerHTML=t;
+  svg=document.querySelector('#stage svg');
+  LOSE=svg.querySelector('#lose'); WIN=svg.querySelector('#win');
+  WIN.style.display='';                 // wrapper always on; per-slot groups do the switching
+  const box=document.getElementById('slots');
+  SLOTS.forEach(s=>{
+    box.insertAdjacentHTML('beforeend',
+      `<div class="row"><span>${s}</span><select data-slot="${s}">
+        <option value="lose">lose</option><option value="win">win</option><option value="off">off</option>
+       </select></div>`);
+  });
+  box.addEventListener('change',applyAll);
+  document.getElementById('lvl').addEventListener('input',applyLevel);
+  document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>preset(b.dataset.preset));
+  preset('play');
+});
+</script>
