@@ -7,7 +7,11 @@ const KEYBOARD = [
   ['զ', 'ղ', 'ց', 'վ', 'բ', 'ն', 'մ', 'խ', 'ծ'],
 ];
 
-const SKIPS_BY_MODE = { easy: 4, medium: 2, hard: 0, learning: 2 };
+// Difficulty now grants "free letters": a fraction of the word's slots is
+// pre-revealed at the start of each round (no cost, no lives). See
+// pickFreeLetters for how the fraction maps to actual letters. Learning mode
+// stays honest (no freebies) for now.
+const FREE_PCT_BY_MODE = { easy: 0.30, medium: 0.15, hard: 0, learning: 0 };
 const MAX_LIVES = 14;
 const REVEAL_PAUSE_MS = 800;
 const LOSE_PAUSE_MS = 1500;
@@ -20,8 +24,8 @@ const state = {
   slots: [],
   lives: MAX_LIVES,
   score: 0,
-  skipsUsed: 0,
-  maxSkips: 0,
+  freeCount: 0,            // slots pre-revealed for free this round (for fair stats)
+  letterRank: null,        // token -> exoticness rank (0 = rarest); see computeLetterRank
   locked: false,
 };
 
@@ -82,12 +86,13 @@ function initCast() {
 // wrong guesses (shown red). Read straight off the rendered keyboard so the
 // game logic doesn't need to track guessed letters separately.
 function castKeyState() {
-  const used = [], wrong = [];
+  const used = [], wrong = [], free = [];
   for (const k of document.querySelectorAll('.key')) {
     if (k.classList.contains('wrong')) wrong.push(k.dataset.letter);
+    else if (k.classList.contains('free')) free.push(k.dataset.letter);
     else if (k.disabled) used.push(k.dataset.letter);
   }
-  return { used, wrong };
+  return { used, wrong, free };
 }
 
 function castSnapshot(phase) {
@@ -101,6 +106,7 @@ function castSnapshot(phase) {
     score: state.score,
     used: ks.used,
     wrong: ks.wrong,
+    free: ks.free,
   };
 }
 
@@ -133,6 +139,56 @@ function buildSlots(answer) {
     }
   }
   return slots;
+}
+
+// Exoticness index: rank every letter-token by how rare it is across the whole
+// word list (rarest = rank 0). Free letters reveal the rarest letters first --
+// they're the ones a player is least likely to guess, so gifting them helps
+// most. Computed once per game from the loaded words; ties broken by codepoint
+// for a stable, deterministic order.
+function computeLetterRank(words) {
+  const freq = new Map();
+  for (const w of words) {
+    for (const slot of buildSlots(w.a)) {
+      freq.set(slot.char, (freq.get(slot.char) || 0) + 1);
+    }
+  }
+  const ordered = [...freq.entries()].sort(
+    (a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1)
+  );
+  const rank = new Map();
+  ordered.forEach(([ch], i) => rank.set(ch, i));
+  return rank;
+}
+
+// Choose which whole letters to pre-reveal for a round. Reveals rarest-first
+// up to ~pct of the slots, but always leaves at least 2 slots AND 2 distinct
+// letters hidden so the word is never effectively solved. Easy mode is floored
+// to at least one freebie. Returns a Set of tokens (chars) to auto-reveal.
+function pickFreeLetters(slots, pct) {
+  const n = slots.length;
+  if (!pct || n < 3) return new Set();
+  let target = Math.round(pct * n);
+  if (state.mode === 'easy') target = Math.max(1, target);
+  target = Math.min(target, n - 2);
+  if (target <= 0) return new Set();
+
+  const rank = state.letterRank || new Map();
+  const distinct = [...new Set(slots.map((s) => s.char))]
+    .sort((a, b) => (rank.get(a) ?? Infinity) - (rank.get(b) ?? Infinity));
+  const countOf = (ch) => slots.reduce((k, s) => k + (s.char === ch ? 1 : 0), 0);
+
+  const chosen = new Set();
+  let revealed = 0;
+  for (const ch of distinct) {
+    if (revealed >= target) break;
+    const cnt = countOf(ch);
+    if (n - (revealed + cnt) < 2) break;               // keep >=2 slots hidden
+    if (distinct.length - (chosen.size + 1) < 2) break; // keep >=2 letters hidden
+    chosen.add(ch);
+    revealed += cnt;
+  }
+  return chosen;
 }
 
 async function loadWords() {
@@ -253,21 +309,20 @@ function buildKeyboard() {
   }
 }
 
-function buildSkipArrows() {
-  const c = document.getElementById('skipContainer');
-  c.innerHTML = '';
-  for (let i = 0; i < state.maxSkips; i++) {
-    const a = document.createElement('div');
-    a.className = 'skip-arrow';
-    c.appendChild(a);
-  }
-  c.onclick = onSkip;
+// Small top-bar indicator of how many letters were gifted this round (a key
+// glyph + count). Blank when there are none.
+function renderFreeInfo(count) {
+  const el = document.getElementById('freeInfo');
+  if (!el) return;
+  el.innerHTML = count > 0
+    ? `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15 19 4"/><path d="m18 5 2 2"/><path d="m15 8 2 2"/></svg><span>${count}</span>`
+    : '';
 }
 
 function resetKeyboard() {
   for (const k of document.querySelectorAll('.key')) {
     k.disabled = false;
-    k.classList.remove('wrong');
+    k.classList.remove('wrong', 'free');
   }
 }
 
@@ -294,20 +349,30 @@ function nextWord() {
   document.getElementById('clue').textContent = state.current.q;
   setPersonImage();
   resetKeyboard();
+  applyFreeLetters();
   renderSlots();
   castSend('playing');
 }
 
-function onSkip() {
-  if (state.locked) return;
-  if (state.skipsUsed >= state.maxSkips) return;
-  const arrows = document.querySelectorAll('.skip-arrow');
-  if (arrows[state.skipsUsed]) arrows[state.skipsUsed].classList.add('used');
-  state.skipsUsed++;
-  const wrong = MAX_LIVES - state.lives;
-  recordAttempt(state.current, 'skipped', wrong);
-  state.picker.afterRound(state.current, 'skipped', wrong);
-  nextWord();
+// Pre-reveal the round's free letters: fill their slots and mark their keys
+// as used (so they read as "used" on the board and on a connected TV). Free
+// reveals cost no lives and never trip the win check (>=2 slots stay hidden).
+function applyFreeLetters() {
+  const free = pickFreeLetters(state.slots, FREE_PCT_BY_MODE[state.mode] || 0);
+  let freeSlots = 0;
+  for (const slot of state.slots) {
+    if (free.has(slot.char)) { slot.revealed = true; freeSlots++; }
+  }
+  for (const k of document.querySelectorAll('.key')) {
+    if (free.has(k.dataset.letter)) {
+      k.disabled = true;
+      k.classList.add('free');
+    }
+  }
+  // Store revealed *slots* (positions) for the stats math; show the count of
+  // distinct gifted letters in the indicator.
+  state.freeCount = freeSlots;
+  renderFreeInfo(free.size);
 }
 
 function onLetter(letter, btn) {
@@ -610,8 +675,7 @@ function renderStats() {
     const avgWrongStr = s.avgWrong == null ? '—' : s.avgWrong.toFixed(1);
     const summary =
       `${entry.attempts.length} փորձ · ` +
-      `միջ. ${avgWrongStr} · ` +
-      `${s.skips.length} բացթ.`;
+      `միջ. ${avgWrongStr}`;
     return (
       `<div class="stats-row">` +
         `<div class="stats-text">` +
