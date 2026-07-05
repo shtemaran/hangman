@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Marduk — cage bars</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:1.2rem;display:flex;flex-direction:column;gap:.8rem;align-items:flex-start}
+  #stage{width:440px;height:380px;border:1px solid #ddd}
+  #stage svg{width:100%;height:100%}
+  .row{display:flex;gap:.7rem;align-items:center;font-size:14px}
+</style>
+<h3>Marduk cage — bars drop / slide in; sadder as the cage fills</h3>
+<div id="stage">loading…</div>
+<div class="row">
+  <button id="addbar">+ bar</button><button id="rmbar">− bar</button>
+  <span id="count">0 / 8</span>
+  <button id="cage">Cage all</button><button id="uncage">Break free</button>
+  <label><input type="checkbox" id="idle" checked> idle</label>
+</div>
+<script src="./rig.js"></script>
+<script>
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const backOut=(t,s=1.3)=>{const c3=s+1; return 1+c3*Math.pow(t-1,3)+s*Math.pow(t-1,2);}; // single gentle overshoot
+const easeIn=t=>t*t*t;                                                                    // accelerate out, no bounce
+const DUR_IN=950, DUR_OUT=460, STAGGER=150;
+
+Promise.all([
+  fetch('../assets/marduk_semantic.svg').then(r=>r.text()),
+  fetch('./face_targets.json').then(r=>r.json())
+]).then(([svgText,targets])=>{
+  document.getElementById('stage').innerHTML=svgText;
+  const svg=document.querySelector('#stage svg'), NS='http://www.w3.org/2000/svg';
+  const rig=createRig(svg,targets); rig.idle(true);
+  const vb=svg.getAttribute('viewBox').split(' ').map(Number);
+  const [VX,VY,VW,VH]=vb, M=40;
+
+  const src=svg.querySelector('#lose-bars');
+  const cage=document.createElementNS(NS,'g'); cage.id='cage'; svg.appendChild(cage);
+  const bars=[...src.querySelectorAll('path,polygon')].map(el=>{
+    const g=document.createElementNS(NS,'g'); g.appendChild(el.cloneNode(true)); cage.appendChild(g);
+    const bb=g.getBBox(); return {g,bb,vert:bb.height>bb.width,k:1};  // k: 1 = fully off-frame, 0 = at rest
+  });
+  const V=bars.filter(b=>b.vert).sort((a,b)=>a.bb.x-b.bb.x);
+  const H=bars.filter(b=>!b.vert).sort((a,b)=>a.bb.y-b.bb.y);
+  V.forEach(b=>{ b.sx=0; b.sy=-(b.bb.y+b.bb.height - VY + M); });      // drop from above (fully clears top)
+  const dir=[-1,1,1,-1];                                              // L,R,R,L top->bottom
+  H.forEach((b,i)=>{ const d=dir[i%4]; b.sy=0;
+    b.sx = d>0 ? (VX+VW - b.bb.x + M) : -(b.bb.x+b.bb.width - VX + M); // slide fully off its side
+  });
+  const order=[...V,...H];
+  const place=b=>b.g.setAttribute('transform',`translate(${b.sx*b.k} ${b.sy*b.k})`);
+  bars.forEach(place);
+
+  // per-bar animation toward k=0 (in) or k=1 (out)
+  const anims=new Map(); let raf=null;
+  function loop(now){
+    for(const [b,a] of anims){ const p=(now-a.t0)/a.dur;
+      if(p<0) continue;
+      if(p>=1){ b.k=a.toIn?0:1; place(b); anims.delete(b); continue; }
+      b.k = a.toIn ? (1-backOut(p)) : easeIn(p); place(b);
+    }
+    raf = anims.size ? requestAnimationFrame(loop) : null;
+  }
+  const go=(b,toIn,dur,delay=0)=>{ anims.set(b,{t0:performance.now()+delay,toIn,dur}); if(raf==null) raf=requestAnimationFrame(loop); };
+
+  // expression follows the cage: 0 bars = happy (+1) ... 8 bars = sad (-1), eased
+  let shown=0, exprTarget=1, exprRaf=null;
+  function exprLoop(){ rig.p.expr += (exprTarget-rig.p.expr)*0.12;
+    if(Math.abs(exprTarget-rig.p.expr)>0.002) exprRaf=requestAnimationFrame(exprLoop);
+    else { rig.p.expr=exprTarget; exprRaf=null; } }
+  const cnt=document.getElementById('count');
+  const refresh=()=>{ cnt.textContent=`${shown} / 8`; exprTarget=1-(shown/8)*2; if(exprRaf==null) exprRaf=requestAnimationFrame(exprLoop); };
+
+  document.getElementById('addbar').onclick=()=>{ if(shown<8){ go(order[shown],true,DUR_IN); shown++; refresh(); } };
+  document.getElementById('rmbar').onclick =()=>{ if(shown>0){ shown--; go(order[shown],false,DUR_OUT); refresh(); } };
+  document.getElementById('cage').onclick  =()=>{ let k=0; for(let i=shown;i<8;i++){ go(order[i],true,DUR_IN,k*STAGGER); k++; } shown=8; refresh(); };
+  document.getElementById('uncage').onclick=()=>{ let k=0; for(let i=shown-1;i>=0;i--){ go(order[i],false,DUR_OUT,k*90); k++; } shown=0; refresh(); };
+  document.getElementById('idle').onchange=e=>rig.idle(e.target.checked);
+  refresh();
+});
+</script>
