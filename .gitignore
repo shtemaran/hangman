@@ -8,3 +8,6 @@ Thumbs.db
 
 # Node (if tooling is ever added)
 node_modules/
+
+# Inkscape auto-backups
+*.svg.*.svg

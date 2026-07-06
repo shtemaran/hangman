@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Marduk — finger curl (bend, all 5)</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:1.2rem;display:flex;flex-direction:column;gap:.6rem;align-items:flex-start}
+  #stage{width:560px;height:207px;border:1px solid #ddd}
+  #stage svg{width:100%;height:100%}
+  .ctl{display:grid;grid-template-columns:70px 1fr 42px;gap:.5rem;align-items:center;font-size:13px;width:420px}
+  .ctl output{text-align:right;color:#555}
+  h4{margin:.4rem 0 0}
+</style>
+<h3>Finger curl — all 5, recreated Inkscape Bend along each finger's axis</h3>
+<div id="stage">loading…</div>
+<div class="ctl"><span><b>all</b></span><input id="all" type="range" min="0" max="1" step="0.01" value="0"><output>0.00</output></div>
+<label><input type="checkbox" id="spline" checked> show driving spline (red = live, gray = rest/bent)</label>
+<h4>per finger</h4>
+<div id="sliders"></div>
+<script>
+function arclen(pts){
+  const seg=[],cum=[0]; let L=0;
+  for(let i=0;i<pts.length-1;i++){const dx=pts[i+1][0]-pts[i][0],dy=pts[i+1][1]-pts[i][1],l=Math.hypot(dx,dy);seg.push([dx,dy,l]);L+=l;cum.push(L);}
+  return {L,at:s=>{s=Math.max(0,Math.min(L,s));let i=0;while(i<seg.length-1&&cum[i+1]<s)i++;const f=(s-cum[i])/Math.max(seg[i][2],1e-9);
+    return {p:[pts[i][0]+seg[i][0]*f,pts[i][1]+seg[i][1]*f],t:[seg[i][0]/Math.max(seg[i][2],1e-9),seg[i][1]/Math.max(seg[i][2],1e-9)]};}};
+}
+const norm=x=>(((x+Math.PI)%(2*Math.PI))+2*Math.PI)%(2*Math.PI)-Math.PI;
+function interpSkel(f,t){                 // accumulate TURNING angles (relative) so the chain rolls up progressively
+  const R=f.rest,B=f.bent,aR=[],lR=[],aB=[],lB=[];
+  for(let i=0;i<R.length-1;i++){
+    aR.push(Math.atan2(R[i+1][1]-R[i][1],R[i+1][0]-R[i][0])); lR.push(Math.hypot(R[i+1][0]-R[i][0],R[i+1][1]-R[i][1]));
+    aB.push(Math.atan2(B[i+1][1]-B[i][1],B[i+1][0]-B[i][0])); lB.push(Math.hypot(B[i+1][0]-B[i][0],B[i+1][1]-B[i][1]));
+  }
+  let h=aR[0]+t*norm(aB[0]-aR[0]);
+  const V=[[R[0][0]+(B[0][0]-R[0][0])*t, R[0][1]+(B[0][1]-R[0][1])*t]];
+  for(let i=0;i<aB.length;i++){
+    if(i>0) h+=t*norm(aB[i]-aB[i-1]);
+    const l=(1-t)*lR[i]+t*lB[i], p=V[V.length-1];
+    V.push([p[0]+l*Math.cos(h), p[1]+l*Math.sin(h)]);
+  }
+  return V;
+}
+function bendD(f,t){
+  const skel=interpSkel(f,t);
+  const A=arclen(skel), Xr=f.xmx-f.xmn, out=[];
+  for(const poly of f.polys){ let d='M ';
+    for(let j=0;j<poly.length;j++){const x=poly[j][0],y=poly[j][1]; const r=A.at((x-f.xmn)/Xr*A.L);
+      d+=(j?'L ':'')+(r.p[0]+(y-f.ymid)*(-r.t[1])).toFixed(2)+','+(r.p[1]+(y-f.ymid)*(r.t[0])).toFixed(2)+' ';}
+    out.push(d+'Z'); }
+  return out.join(' ');
+}
+fetch('./finger_bend.json').then(r=>r.json()).then(d=>{
+  const vb=d.viewBox, NS='http://www.w3.org/2000/svg';
+  document.getElementById('stage').innerHTML=`<svg xmlns="${NS}" viewBox="${vb.join(' ')}">${d.arm}</svg>`;
+  const svg=document.querySelector('#stage svg'), F={}, ORDER=['thumb','pointer','middle','ring','pinky'];
+  const line=pts=>'M '+pts.map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' L ');
+  const skelLine=(f,t)=>line(interpSkel(f,t));
+  for(const lb of ORDER){ const f=d.fingers[lb]; if(!f) continue;
+    const g=document.createElementNS(NS,'g'); g.setAttribute('transform',`translate(${f.K[0]} ${f.K[1]}) rotate(${f.deg})`);
+    const p=document.createElementNS(NS,'path'); p.setAttribute('fill','#081c1a'); g.appendChild(p);
+    const ov=document.createElementNS(NS,'g'); ov.setAttribute('class','spline');   // overlay: rest/bent (gray) + live (red)
+    for(const [pts,col,w] of [[f.rest,'#bbb',0.6],[f.bent,'#bbb',0.6]]){const s=document.createElementNS(NS,'path');s.setAttribute('d',line(pts));s.setAttribute('stroke',col);s.setAttribute('fill','none');s.setAttribute('stroke-width',w);ov.appendChild(s);}
+    const live=document.createElementNS(NS,'path'); live.setAttribute('stroke','#e00'); live.setAttribute('fill','none'); live.setAttribute('stroke-width',1); ov.appendChild(live);
+    g.appendChild(ov); svg.appendChild(g);
+    F[lb]={el:p,f,v:0,live,skelLine}; p.setAttribute('d',bendD(f,0)); live.setAttribute('d',skelLine(f,0)); }
+  const box=document.getElementById('sliders');
+  for(const lb of ORDER){ if(!F[lb]) continue;
+    const row=document.createElement('div');row.className='ctl';
+    row.innerHTML=`<span>${lb}</span><input type=range min=0 max=1 step=0.01 value=0><output>0.00</output>`;
+    const inp=row.querySelector('input'),out=row.querySelector('output');
+    const upd=v=>{F[lb].v=v;F[lb].el.setAttribute('d',bendD(F[lb].f,v));F[lb].live.setAttribute('d',skelLine(F[lb].f,v));out.textContent=v.toFixed(2);};
+    inp.oninput=()=>upd(+inp.value);
+    box.appendChild(row);F[lb].slider=inp;F[lb].out=out;F[lb].upd=upd; }
+  document.getElementById('all').oninput=e=>{const v=+e.target.value;e.target.nextElementSibling.textContent=v.toFixed(2);
+    for(const lb in F){F[lb].slider.value=v;F[lb].upd(v);}};
+  document.getElementById('spline').onchange=e=>{svg.querySelectorAll('.spline').forEach(s=>s.style.display=e.target.checked?'':'none');};
+});
+</script>
