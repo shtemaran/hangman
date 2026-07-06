@@ -3,9 +3,10 @@
 the knuckle, bend via Inkscape math, place back with a transform). pointer &
 middle reuse the artist's bendpath; thumb/ring/pinky get a curl template scaled
 to their principal line. Emits finger_bend.json (local polys + skeletons + placement)."""
-import re, json, math, io, numpy as np, cairosvg
+import re, json, math, io, os, sys, numpy as np, cairosvg
 from PIL import Image, ImageDraw
 from svgpathtools import parse_path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import bones   # shared deform engine
 GEN='/home/serg/cpp/hangman/rig/generated/'
 spread=open(GEN+'hand-spread.svg').read(); closed=open(GEN+'hand-spread-closed.svg').read()
 vb=[float(x) for x in re.search(r'viewBox="([^"]*)"',spread).group(1).split()]
@@ -60,22 +61,6 @@ def local_skels(lb):
     if lb in FLIP: bent=bent.copy(); bent[:,1]=2*f['ymid']-bent[:,1]
     return rest,bent
 
-def arclen(pts):
-    seg=np.diff(pts,axis=0); sl=np.hypot(seg[:,0],seg[:,1]); cum=np.r_[0,np.cumsum(sl)]; L=cum[-1]
-    def at(s):
-        s=np.clip(s,0,L); i=min(int(np.searchsorted(cum,s))-1,len(seg)-1); i=max(i,0); f=(s-cum[i])/max(sl[i],1e-9)
-        return pts[i]+seg[i]*f, seg[i]/max(sl[i],1e-9)
-    return at,L
-def to_d(pl): return 'M '+' L '.join(f'{x:.2f},{y:.2f}' for x,y in pl)+' Z'
-def bend_local(loc,skel,xmn,xmx,ymid):
-    at,L=arclen(skel); Xr=xmx-xmn; parts=[]
-    for poly in loc:
-        bp=[]
-        for x,y in poly:
-            P,tn=at((x-xmn)/Xr*L); bp.append((P[0]+(y-ymid)*(-tn[1]),P[1]+(y-ymid)*tn[0]))
-        parts.append(to_d(bp))
-    return ' '.join(parts)
-
 DATA={}
 for lb in LABELS:
     f=FING[lb]; rest,bent=local_skels(lb)
@@ -87,8 +72,8 @@ json.dump({'viewBox':vb,'arm':clean(layer(spread,'arm')),'fingers':DATA}, open('
 # validate: full hand at t=0,.5,1
 W=440; H=int(round(W*vb[3]/vb[2]))
 def place(lb,t):
-    f=FING[lb]; rest,bent=local_skels(lb); skel=(1-t)*rest+t*bent
-    dd=bend_local(f['loc'],skel,f['xmn'],f['xmx'],f['ymid'])
+    f=FING[lb]; rest,bent=local_skels(lb); skel=bones.interp_skel(rest,bent,t)   # turning-angle (matches bones.js)
+    dd=bones.bend_along(f['loc'],skel,f['xmn'],f['xmx'],f['ymid'])
     return f'<g transform="translate({f["K"][0]:.2f} {f["K"][1]:.2f}) rotate({math.degrees(f["th"]):.2f})"><path fill="#081c1a" d="{dd}"/></g>'
 def frame(t):
     body=clean(layer(spread,'arm'))+''.join(place(lb,t) for lb in LABELS)
