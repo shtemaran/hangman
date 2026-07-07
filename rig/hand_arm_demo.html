@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Marduk — hand parented to arm</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:1.2rem;display:flex;flex-direction:column;gap:.5rem;align-items:flex-start}
+  #stage{width:480px;height:720px;border:1px solid #ddd}
+  #stage svg{width:100%;height:100%}
+  .ctl{display:grid;grid-template-columns:70px 1fr 42px;gap:.5rem;align-items:center;font-size:13px;width:440px}
+  .ctl output{text-align:right;color:#555}
+  h4{margin:.3rem 0 0}
+</style>
+<h3>Hand parented to arm — bend the elbow, the whole hand rides the forearm</h3>
+<div id="stage">loading…</div>
+<div class="ctl"><span><b>elbow</b></span><input id="elbow" type="range" min="-1" max="1" step="0.01" value="0"><output>0.00</output></div>
+<div class="ctl"><span><b>curl all</b></span><input id="all" type="range" min="0" max="1" step="0.01" value="0"><output>0.00</output></div>
+<label><input type="checkbox" id="spline"> show arm spline</label>
+<h4>per finger</h4>
+<div id="sliders"></div>
+<script src="./bones.js"></script>
+<script>
+Promise.all([fetch('./arm_bend.json').then(r=>r.json()), fetch('./finger_bend.json').then(r=>r.json())])
+.then(([A,H])=>{
+  const NS='http://www.w3.org/2000/svg', ORDER=['thumb','pointer','middle','ring','pinky'], arm=A.arm;
+  const vb=A.viewBox, px=40, py=340, VB=[vb[0]-px, vb[1]-py, vb[2]+2*px, vb[3]+2*py];   // padded room for the swing
+  document.getElementById('stage').innerHTML=`<svg xmlns="${NS}" viewBox="${VB.join(' ')}"></svg>`;
+  const svg=document.querySelector('#stage svg');
+
+  // --- arm bone (placed at the shoulder) ---
+  const ag=document.createElementNS(NS,'g'); ag.setAttribute('transform',`translate(${arm.K[0]} ${arm.K[1]}) rotate(${arm.deg})`);
+  const ap=document.createElementNS(NS,'path'); ap.setAttribute('fill','#081c1a'); ag.appendChild(ap);
+  const ov=document.createElementNS(NS,'g'); ov.setAttribute('class','spline'); ov.style.display='none';
+  const line=pts=>'M '+pts.map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' L ');
+  for(const pts of [arm.rest,arm.bent]){const s=document.createElementNS(NS,'path');s.setAttribute('d',line(pts));s.setAttribute('stroke','#bbb');s.setAttribute('fill','none');s.setAttribute('stroke-width',0.8);ov.appendChild(s);}
+  const live=document.createElementNS(NS,'path'); live.setAttribute('stroke','#e00'); live.setAttribute('fill','none'); live.setAttribute('stroke-width',1.2); ov.appendChild(live);
+  ag.appendChild(ov); svg.appendChild(ag);
+
+  // --- hand: all finger bones in one group that carries the wrist-frame delta ---
+  const hand=document.createElementNS(NS,'g'); svg.appendChild(hand); const F={};
+  for(const lb of ORDER){ const f=H.fingers[lb]; if(!f) continue;
+    const g=document.createElementNS(NS,'g'); g.setAttribute('transform',`translate(${f.K[0]} ${f.K[1]}) rotate(${f.deg})`);
+    const p=document.createElementNS(NS,'path'); p.setAttribute('fill','#081c1a'); p.setAttribute('d',Bones.deform(f,0)); g.appendChild(p);
+    hand.appendChild(g); F[lb]={p,f,v:0}; }
+
+  // --- wrist frame: arm tip in world coords; hand transform = delta from rest ---
+  const R=arm.deg*Math.PI/180, c=Math.cos(R), s=Math.sin(R);
+  const worldTip=t=>{ const f=Bones.tipFrame(arm,t);
+    return { O:[arm.K[0]+f.p[0]*c-f.p[1]*s, arm.K[1]+f.p[0]*s+f.p[1]*c], a:R+f.ang }; };
+  const T0=worldTip(0);
+  const setElbow=t=>{ ap.setAttribute('d',Bones.deform(arm,t)); live.setAttribute('d',Bones.skelPath(arm.rest,arm.bent,t));
+    const T=worldTip(t), deg=(T.a-T0.a)*180/Math.PI;
+    hand.setAttribute('transform',`translate(${T.O[0].toFixed(2)} ${T.O[1].toFixed(2)}) rotate(${deg.toFixed(2)}) translate(${(-T0.O[0]).toFixed(2)} ${(-T0.O[1]).toFixed(2)})`); };
+  setElbow(0);
+
+  // --- controls ---
+  document.getElementById('elbow').oninput=e=>{const v=+e.target.value;e.target.nextElementSibling.textContent=v.toFixed(2);setElbow(v);};
+  const box=document.getElementById('sliders'), setCurl=(lb,v)=>{F[lb].v=v;F[lb].p.setAttribute('d',Bones.deform(F[lb].f,v));};
+  for(const lb of ORDER){ if(!F[lb]) continue;
+    const row=document.createElement('div');row.className='ctl';
+    row.innerHTML=`<span>${lb}</span><input type=range min=0 max=1 step=0.01 value=0><output>0.00</output>`;
+    const inp=row.querySelector('input'),out=row.querySelector('output');
+    inp.oninput=()=>{setCurl(lb,+inp.value);out.textContent=(+inp.value).toFixed(2);};
+    box.appendChild(row);F[lb].slider=inp;F[lb].out=out; }
+  document.getElementById('all').oninput=e=>{const v=+e.target.value;e.target.nextElementSibling.textContent=v.toFixed(2);
+    for(const lb in F){F[lb].slider.value=v;F[lb].out.textContent=v.toFixed(2);setCurl(lb,v);}};
+  document.getElementById('spline').onchange=e=>{ov.style.display=e.target.checked?'':'none';};
+});
+</script>

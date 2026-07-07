@@ -66,6 +66,14 @@ const Bones = (function(){
   const deform   = (bone, t) => bendAlong(bone.polys, interpSkel(bone.rest, bone.bent, t), bone.xmn, bone.xmx, bone.ymid);
   const skelPath = (rest, bent, t) => 'M ' + interpSkel(rest,bent,t).map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' L ');
 
-  return { norm, arclen, interpSkel, bendAlong, deform, skelPath };
+  // Frame at the skeleton's TIP (last point) at t, in the bone's LOCAL frame:
+  // { p:[x,y] tip position, ang: tangent angle of the last segment }. Used to
+  // parent a child (e.g. the hand) to the bone's far end (e.g. the wrist).
+  function tipFrame(bone, t){
+    const V=interpSkel(bone.rest, bone.bent, t), n=V.length, a=V[n-1], b=V[n-2];
+    return { p:[a[0],a[1]], ang:Math.atan2(a[1]-b[1], a[0]-b[0]) };
+  }
+
+  return { norm, arclen, interpSkel, bendAlong, deform, skelPath, tipFrame };
 })();
 if (typeof module!=='undefined') module.exports = Bones;

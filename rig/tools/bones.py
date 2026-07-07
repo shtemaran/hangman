@@ -42,3 +42,9 @@ def deform(bone, t):
     """Deform a bone {polys,rest,bent,xmn,xmx,ymid} (numpy arrays) at t -> path 'd'."""
     return bend_along(bone['polys'], interp_skel(bone['rest'], bone['bent'], t),
                       bone['xmn'], bone['xmx'], bone['ymid'])
+
+def tip_frame(bone, t):
+    """Frame at the skeleton tip (last point) at t, in the bone's LOCAL frame ->
+    (tip_point, tangent_angle). Used to parent a child to the bone's far end."""
+    V=interp_skel(bone['rest'], bone['bent'], t)
+    return V[-1], math.atan2(V[-1][1]-V[-2][1], V[-1][0]-V[-2][0])

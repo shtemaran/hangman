@@ -105,5 +105,22 @@ angle the other way, mirroring the bend across the arm axis. The demo slider run
 −1..+1; which sign an animation uses is decided later. `PHI` (max angle) and `W`
 (rounding span) are the two knobs at the top of the builder.
 
-Next: parent the hand's knuckle frame to the arm's live wrist tip so the whole
-hand rides the forearm.
+## Parenting the hand to the arm
+
+`hand_arm_demo.html` hangs the whole hand off the arm's wrist end. The hand was
+authored in the same coordinate space as the arm (wrist marker at 105.5,69.5), so
+we don't re-place each finger — we wrap all five finger groups in one `<g>` and
+give it the **delta** transform that carries the arm's *rest* wrist-frame to its
+*bent* wrist-frame:
+
+```
+Bones.tipFrame(arm, t) -> { p, ang }          // tip position + tangent, LOCAL to the arm bone
+worldTip(t): apply the arm's translate(K)·rotate(deg) to that frame -> { O, a } in world
+hand transform = translate(O_t) · rotate(a_t − a_0) · translate(−O_0)
+```
+
+At `t=0` the delta is the identity, so the hand sits exactly where it was drawn;
+as the elbow moves, the hand rides the forearm end (position **and** orientation)
+as a rigid child. Finger curl still runs independently on each finger bone on top
+of that. `tipFrame` is the general hook for parenting any child to a bone's far
+end (mirrored in `tools/bones.py` as `tip_frame`).
