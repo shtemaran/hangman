@@ -146,3 +146,21 @@ reach, since the arm sweeps a circle about the pivot.
 So the joint hierarchy is: **shoulder pivot → arm bone (elbow) → wrist frame →
 five finger bones (curl)** — one deforming bone per real joint, plain transforms
 for the rigid parenting between them.
+
+## Driving it from the main rig
+
+`rig.js` hosts the arm on the character. `createRig(svg, faceTargets, hand)` takes
+`hand = { arm, fingers }` (the `arm_bend.json` / `finger_bend.json` payloads);
+load `bones.js` before `rig.js` so the global `Bones` is present, or the arm
+block is skipped. It replaces the left arm (`win-hands-l`) with the rigged chain
+and leaves the original `win-hands-r` untouched.
+
+Placement maps the bone-space shoulder (`arm.K`) onto the body's left shoulder.
+The anchor is the hand-tuned **SHL ≈ (328.8, 359.2)** (Inkscape page `211,371` on
+648×562 → viewBox) *minus* the `#win` group's transform, since the arm lives
+inside `#win`: `cfg.armX/armY ≈ (339.45, 385.79)`. `cfg.armScale` (≈0.514, head-
+relative), `cfg.armAim` (rest angle) and `cfg.armShoulderMax` are tunable in the
+rig tuner. Channels: `p.armShoulder` (−1..1), `p.armElbow` (−1..0), `p.grip`
+(0..1); scripted gestures `rig.wave()` and `rig.fistpump()` envelope them back to
+rest. The bone `d`s are recomputed in `flush()` only when a channel actually
+changed.

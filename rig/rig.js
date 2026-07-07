@@ -8,7 +8,7 @@
 //   rig.p.eyeOpenL = 0;     // blink/wink (per eye), composes with expr
 //   rig.blink(); rig.wink('l'); rig.idle(true);
 
-function createRig(svg, T){
+function createRig(svg, T, hand){
   const NS='http://www.w3.org/2000/svg';
   const $=id=>svg.querySelector('#'+id);
   const mkG=id=>{const g=document.createElementNS(NS,'g'); g.id=id; return g;};
@@ -31,8 +31,7 @@ function createRig(svg, T){
   const mouthP=document.createElementNS(NS,'path'); mouthP.setAttribute('fill','#081C1A'); mouthP.id='rig-mouth';
   head.appendChild(mouthP);
   $('win-torso')&&body.appendChild($('win-torso'));
-  const srcArmR=$('win-hands-r'), srcArmL=$('win-hands-l');   // sources for hand poses (cloned, then removed)
-  srcArmR&&srcArmR.remove(); srcArmL&&srcArmL.remove();
+  $('win-hands-l')&&$('win-hands-l').remove();   // left arm becomes the rigged arm; keep original win-hands-r for now
   body.appendChild(head); rootG.appendChild(body);
 
   // ---- blend-shape helpers (all targets corresponded to the 'happy' topology) ----
@@ -61,22 +60,47 @@ function createRig(svg, T){
   const tbb=$('win-torso')?bb($('win-torso')):{x:0,y:0,width:0,height:0};
   const torsoC=[tbb.x+tbb.width/2, tbb.y+tbb.height/2];
 
-  // ---- hand poses (swap, not morph): neutral (mirrored right arm) / thumbsup ----
-  const arms={};
-  const armPose=(name,leftEl,rightEl)=>{ const g=mkG('rig-hands-'+name);
-    if(rightEl)g.appendChild(rightEl); if(leftEl)g.appendChild(leftEl);
-    body.insertBefore(g, head); arms[name]=g; };
-  if(srcArmR){
-    const mL=mkG('rig-arm-mirror'); mL.setAttribute('transform',`translate(${2*headC[0]} 0) scale(-1 1)`); mL.appendChild(srcArmR.cloneNode(true));
-    armPose('neutral', mL, srcArmR.cloneNode(true));
-    armPose('thumbsup', srcArmL?srcArmL.cloneNode(true):null, srcArmR.cloneNode(true));
+  // ---- rigged arm+hand (spline bones): shoulder pivot > arm(elbow) > wrist > 5 finger curls ----
+  // hand = { arm:{K,deg,polys,rest,bent,xmn,xmx,ymid,elbow}, fingers:{lb:{...}} }; see BONES.md.
+  // Placement maps the bone-space shoulder (arm.K) onto the body's shoulder (cfg.armX/Y), scaled+aimed.
+  let updateArm=null;
+  if(hand && typeof Bones!=='undefined'){
+    const B=Bones, arm=hand.arm, ORDER=['thumb','pointer','middle','ring','pinky'];
+    const mount=mkG('rig-arm');                                   // bone-space -> body-space placement
+    const pivot=mkG('rig-arm-shoulder'); mount.appendChild(pivot);// pure shoulder rotation about arm.K
+    const armG=mkG('rig-arm-bone'); armG.setAttribute('transform',`translate(${arm.K[0]} ${arm.K[1]}) rotate(${arm.deg})`);
+    const armPath=document.createElementNS(NS,'path'); armPath.setAttribute('fill','#081C1A'); armG.appendChild(armPath); pivot.appendChild(armG);
+    const handG=mkG('rig-hand'); pivot.appendChild(handG);        // carries the wrist-frame delta
+    const fPath={};
+    for(const lb of ORDER){ const f=hand.fingers[lb]; if(!f) continue;
+      const g=mkG('rig-finger-'+lb); g.setAttribute('transform',`translate(${f.K[0]} ${f.K[1]}) rotate(${f.deg})`);
+      const pth=document.createElementNS(NS,'path'); pth.setAttribute('fill','#081C1A'); g.appendChild(pth); handG.appendChild(g); fPath[lb]=pth; }
+    const Ra=arm.deg*Math.PI/180, ca=Math.cos(Ra), sa=Math.sin(Ra);
+    const worldTip=t=>{const fr=B.tipFrame(arm,t); return {O:[arm.K[0]+fr.p[0]*ca-fr.p[1]*sa, arm.K[1]+fr.p[0]*sa+fr.p[1]*ca], a:Ra+fr.ang};};
+    const T0=worldTip(0);
+    body.insertBefore(mount, head);
+    let la={sh:NaN,el:NaN,gr:NaN};
+    updateArm=(sh,el,gr)=>{
+      mount.setAttribute('transform',`translate(${cfg.armX} ${cfg.armY}) scale(${cfg.armScale}) rotate(${cfg.armAim}) translate(${-arm.K[0]} ${-arm.K[1]})`);
+      if(sh===la.sh&&el===la.el&&gr===la.gr) return;              // bone deforms only when a channel moved
+      armPath.setAttribute('d', B.deform(arm, el));
+      const T=worldTip(el), deg=(T.a-T0.a)*180/Math.PI;
+      handG.setAttribute('transform',`translate(${T.O[0].toFixed(2)} ${T.O[1].toFixed(2)}) rotate(${deg.toFixed(2)}) translate(${(-T0.O[0]).toFixed(2)} ${(-T0.O[1]).toFixed(2)})`);
+      for(const lb of ORDER) if(fPath[lb]) fPath[lb].setAttribute('d', B.deform(hand.fingers[lb], gr));
+      pivot.setAttribute('transform',`rotate(${(sh*cfg.armShoulderMax).toFixed(2)} ${arm.K[0]} ${arm.K[1]})`);
+      la={sh,el,gr};
+    };
   }
 
   const cfg={ headX:22, headY:16, headTilt:7, gazeYaw:38, gazePitch:26,
               constrainEye:0, constrainMouth:1,      // 0=free swing to edge, 1=sphere-constrained
-              browDrop:3, breathScale:0.02, torsoExpand:0.14, breathBob:3, lean:6 };
+              browDrop:3, breathScale:0.02, torsoExpand:0.14, breathBob:3, lean:6,
+              // rigged arm placement: armX/Y = left-shoulder SHL(328.8,359.2) minus the #win transform,
+              // so the bone-space shoulder lands on the body's shoulder inside the win group.
+              armX:339.45, armY:385.79, armScale:0.514, armAim:-35, armShoulderMax:100 };
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, breath:0.5, bodyLean:0, energy:1,
+            armShoulder:0, armElbow:0, grip:0 };   // arm: shoulder swing -1..1 · elbow -1..0 · grip 0..1
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
@@ -108,7 +132,7 @@ function createRig(svg, T){
     X(body, `rotate(${p.bodyLean*cfg.lean} ${feet[0]} ${feet[1]}) translate(${belly[0]} ${belly[1]}) scale(1 ${bs}) translate(${-belly[0]} ${-belly[1]})`);
     const tsx=1+(p.breath-0.5)*cfg.torsoExpand;          // torso: expand horizontally with the inhale
     $('win-torso')&&X($('win-torso'), `translate(${torsoC[0]} ${torsoC[1]}) scale(${tsx} 1) translate(${-torsoC[0]} ${-torsoC[1]})`);
-    for(const n in arms) arms[n].style.display=(p.hands===n)?'':'none';   // hand pose swap
+    if(updateArm) updateArm(clamp(p.armShoulder,-1,1), clamp(p.armElbow,-1,0), clamp(p.grip,0,1));
   }
   let raf=requestAnimationFrame(function loop(){flush(); raf=requestAnimationFrame(loop);});
 
@@ -120,6 +144,11 @@ function createRig(svg, T){
   const easeShut=k=> k<0.4 ? 1-k/0.4 : k<0.55 ? 0 : (k-0.55)/0.45;
   function blink(D=200){ drive(D,k=>{const eo=clamp(easeShut(k),0,1); p.eyeOpenL=eo; p.eyeOpenR=eo;}); }
   function wink(side='l',D=260){ const key='eyeOpen'+side.toUpperCase(); drive(D,k=>{p[key]=clamp(easeShut(k),0,1);}); }
+  // arm gestures: enveloped so they rise from and settle back to the rest pose (sin(k*pi): 0->1->0)
+  function wave(D=1500){ drive(D,k=>{ const env=Math.sin(k*Math.PI);
+    p.grip=0; p.armShoulder=0.35*env; p.armElbow=(-0.35+0.30*Math.sin(k*Math.PI*6))*env; }); }
+  function fistpump(D=1300){ drive(D,k=>{ const env=Math.sin(k*Math.PI), pump=Math.abs(Math.sin(k*Math.PI*3));
+    p.grip=env>0.12?1:0; p.armShoulder=(0.15+0.25*pump)*env; p.armElbow=(-0.5-0.3*pump)*env; }); }
 
   // ---- idle behaviour ----
   let idleOn=false, tBlink=0, phase=Math.random()*6, gT=[0,0], tGaze=0;
@@ -135,6 +164,6 @@ function createRig(svg, T){
   })(performance.now());
   function idle(on){ idleOn=on; if(!on) tBlink=0; }
 
-  return { p, cfg, flush, blink, wink, idle, pivots:{neck,feet,belly}, stop:()=>cancelAnimationFrame(raf) };
+  return { p, cfg, flush, blink, wink, wave, fistpump, idle, pivots:{neck,feet,belly}, stop:()=>cancelAnimationFrame(raf) };
 }
 if(typeof module!=='undefined') module.exports={createRig};
