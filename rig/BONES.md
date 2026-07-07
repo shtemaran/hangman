@@ -160,7 +160,22 @@ The anchor is the hand-tuned **SHL ≈ (328.8, 359.2)** (Inkscape page `211,371`
 648×562 → viewBox) *minus* the `#win` group's transform, since the arm lives
 inside `#win`: `cfg.armX/armY ≈ (339.45, 385.79)`. `cfg.armScale` (≈0.514, head-
 relative), `cfg.armAim` (rest angle) and `cfg.armShoulderMax` are tunable in the
-rig tuner. Channels: `p.armShoulder` (−1..1), `p.armElbow` (−1..0), `p.grip`
-(0..1); scripted gestures `rig.wave()` and `rig.fistpump()` envelope them back to
-rest. The bone `d`s are recomputed in `flush()` only when a channel actually
-changed.
+rig tuner. Channels: `p.armShoulder` (−1..1, default −0.3 so it rests hanging), `p.armElbow`
+(−1..0), `p.grip` (0..1); scripted gestures `rig.wave()` and `rig.fistpump()`
+envelope them back to rest. The bone `d`s are recomputed in `flush()` only when a
+channel actually changed.
+
+### Brush cuff (hand occlusion)
+
+When the arm hangs, showing a detailed five-finger hand looks wrong next to the
+loose brush-stroke right arm — that stroke just *tapers to nothing*. So instead of
+opacity-fading the hand, a solid ink **cuff** continues the forearm past the wrist
+to a point and swallows the hand into one dissolving stroke. It's a tapering
+tongue polygon (unit template pointing +x, scaled `x`=length, `y`=width) drawn
+over the fingers inside the wrist frame, so it rides the hand. Its length is
+`cfg.cuffLen·(1 − reveal)` where `reveal = smoothstep(armShoulder, cfg.cuffLo,
+cfg.cuffHi)`: at rest length is full (hand hidden in the taper), and as the
+shoulder lifts the cuff retracts and the hand emerges. The fingers also bunch
+(`cfg.tuckCurl`) as they tuck, so the taper stays clean. All of `cuffLen /
+cuffWidth / cuffLo / cuffHi / tuckCurl` are tunable in the rig tuner. Being solid
+ink that narrows geometrically, it reads as a brush stroke ending, not a fade.

@@ -78,15 +78,28 @@ function createRig(svg, T, hand){
     const Ra=arm.deg*Math.PI/180, ca=Math.cos(Ra), sa=Math.sin(Ra);
     const worldTip=t=>{const fr=B.tipFrame(arm,t); return {O:[arm.K[0]+fr.p[0]*ca-fr.p[1]*sa, arm.K[1]+fr.p[0]*sa+fr.p[1]*ca], a:Ra+fr.ang};};
     const T0=worldTip(0);
+    // brush cuff (drawn OVER the fingers, inside the hand frame so it rides the wrist): a tapering
+    // ink tongue continuing the forearm to a point. Unit template points +x in [0,1]; scale x=length,
+    // y=width. At full length it swallows the hand into one dissolving stroke; length 0 = hand shown.
+    const N=22, top=[], bot=[];
+    for(let i=0;i<=N;i++){ const x=i/N, h=0.5*Math.pow(1-x,0.62)*(1+0.10*Math.sin(x*8)); top.push([x,-h]); bot.push([x,h]); }
+    const cuffD='M '+top.concat(bot.reverse()).map(p=>p[0].toFixed(4)+','+p[1].toFixed(4)).join(' L ')+' Z';
+    const cuff=document.createElementNS(NS,'path'); cuff.setAttribute('fill','#081C1A'); cuff.setAttribute('d',cuffD); handG.appendChild(cuff);
+    const smooth=u=>{u=clamp(u,0,1); return u*u*(3-2*u);};
     body.insertBefore(mount, head);
     let la={sh:NaN,el:NaN,gr:NaN};
     updateArm=(sh,el,gr)=>{
       mount.setAttribute('transform',`translate(${cfg.armX} ${cfg.armY}) scale(${cfg.armScale}) rotate(${cfg.armAim}) translate(${-arm.K[0]} ${-arm.K[1]})`);
+      const reveal=smooth((sh-cfg.cuffLo)/(cfg.cuffHi-cfg.cuffLo));   // 0 hand hidden in the taper .. 1 shown
+      const Lc=cfg.cuffLen*(1-reveal);
+      cuff.setAttribute('transform',`translate(${T0.O[0].toFixed(2)} ${T0.O[1].toFixed(2)}) rotate(${arm.deg}) scale(${Lc.toFixed(2)} ${cfg.cuffWidth})`);
+      cuff.style.display = reveal>0.995 ? 'none' : '';
       if(sh===la.sh&&el===la.el&&gr===la.gr) return;              // bone deforms only when a channel moved
       armPath.setAttribute('d', B.deform(arm, el));
       const T=worldTip(el), deg=(T.a-T0.a)*180/Math.PI;
       handG.setAttribute('transform',`translate(${T.O[0].toFixed(2)} ${T.O[1].toFixed(2)}) rotate(${deg.toFixed(2)}) translate(${(-T0.O[0]).toFixed(2)} ${(-T0.O[1]).toFixed(2)})`);
-      for(const lb of ORDER) if(fPath[lb]) fPath[lb].setAttribute('d', B.deform(hand.fingers[lb], gr));
+      const effGrip=clamp(gr+(1-reveal)*cfg.tuckCurl,0,1);         // bunch the fingers as they tuck into the sleeve
+      for(const lb of ORDER) if(fPath[lb]) fPath[lb].setAttribute('d', B.deform(hand.fingers[lb], effGrip));
       pivot.setAttribute('transform',`rotate(${(sh*cfg.armShoulderMax).toFixed(2)} ${arm.K[0]} ${arm.K[1]})`);
       la={sh,el,gr};
     };
@@ -97,10 +110,13 @@ function createRig(svg, T, hand){
               browDrop:3, breathScale:0.02, torsoExpand:0.14, breathBob:3, lean:6,
               // rigged arm placement: armX/Y = left-shoulder SHL(328.8,359.2) minus the #win transform,
               // so the bone-space shoulder lands on the body's shoulder inside the win group.
-              armX:339.45, armY:385.79, armScale:0.514, armAim:-35, armShoulderMax:100 };
+              armX:339.45, armY:385.79, armScale:0.514, armAim:-35, armShoulderMax:100,
+              // brush "cuff": tapers the forearm past the wrist to nothing, occluding the hand when it
+              // hangs (reveal 0) and retracting to show it as the shoulder lifts (cuffLo..cuffHi).
+              cuffLen:112, cuffWidth:34, cuffLo:-0.30, cuffHi:0.08, tuckCurl:0.9 };
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
             eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, breath:0.5, bodyLean:0, energy:1,
-            armShoulder:0, armElbow:0, grip:0 };   // arm: shoulder swing -1..1 · elbow -1..0 · grip 0..1
+            armShoulder:-0.3, armElbow:0, grip:0 };   // arm: shoulder swing -1..1 · elbow -1..0 · grip 0..1
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
