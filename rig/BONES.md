@@ -89,11 +89,21 @@ point count so segments correspond 1:1.
 To regenerate: `python tools/build_finger_bend.py` (needs the scratchpad venv:
 cairosvg, PIL, numpy, svgpathtools).
 
-## Reusing this for the arm
+## The arm (same engine, one joint)
 
-The arm is the same idea one level up: a 2-bone chain (shoulder→elbow→wrist)
-whose lower bone's tip is where the hand's knuckle frame is planted. The upper/
-lower arm can each be a bone deformed along a short skeleton, or the chain can be
-posed by FK/IK and the hand simply parented to the wrist. `interpSkel`'s
-turning-angle roll-up is exactly what keeps a multi-joint arm from collapsing
-through its chord mid-swing, so the engine carries over unchanged.
+The arm reuses this unchanged — see `tools/build_arm_bend.py`, `arm_bend.json`,
+`arm_demo.html`. The arm brush stroke is one bone whose skeleton runs
+shoulder→elbow→wrist, **anchored at the shoulder** (the frame's origin `K` sits
+at the shoulder tip, farthest from the wrist marker — the opposite of the
+finger's knuckle rule). `rest` is the straight T-pose; `bent` rotates the forearm
+about the elbow, with the corner **rounded** by ramping the heading across a
+short span (`W`) via smoothstep so the arm's thickness doesn't pinch at the kink.
+
+Because `rest` is straight and `bent`'s segment lengths match it, the bend is
+**bidirectional**: `deform(bone, t)` with `t < 0` accumulates the elbow's turning
+angle the other way, mirroring the bend across the arm axis. The demo slider runs
+−1..+1; which sign an animation uses is decided later. `PHI` (max angle) and `W`
+(rounding span) are the two knobs at the top of the builder.
+
+Next: parent the hand's knuckle frame to the arm's live wrist tip so the whole
+hand rides the forearm.
