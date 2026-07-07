@@ -125,3 +125,24 @@ as the elbow moves, the hand rides the forearm end (position **and** orientation
 as a rigid child. Finger curl still runs independently on each finger bone on top
 of that. `tipFrame` is the general hook for parenting any child to a bone's far
 end (mirrored in `tools/bones.py` as `tip_frame`).
+
+## The shoulder (pure pivot, no deformation)
+
+The whole arm floats, so the shoulder needs no bone at all — the arm bone is
+already anchored at the shoulder point (`arm.K`). The shoulder joint is just an
+outer group wrapping *both* the arm and the parented hand, rotated about that
+point:
+
+```
+<g transform="rotate(shoulderDeg, arm.K.x, arm.K.y)"> arm + hand </g>
+```
+
+Because the pivot is the arm's own anchor, the entire chain (arm, elbow bend, and
+hand) swings rigidly as one, and elbow + finger curl still compose underneath.
+Unlike the elbow, the shoulder is **bidirectional** (`−1..+1`, scaled by `SH_MAX`
+degrees). The demo frames a square centred on the shoulder sized to the arm's
+reach, since the arm sweeps a circle about the pivot.
+
+So the joint hierarchy is: **shoulder pivot → arm bone (elbow) → wrist frame →
+five finger bones (curl)** — one deforming bone per real joint, plain transforms
+for the rigid parenting between them.
