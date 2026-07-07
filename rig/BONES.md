@@ -99,11 +99,12 @@ finger's knuckle rule). `rest` is the straight T-pose; `bent` rotates the forear
 about the elbow, with the corner **rounded** by ramping the heading across a
 short span (`W`) via smoothstep so the arm's thickness doesn't pinch at the kink.
 
-Because `rest` is straight and `bent`'s segment lengths match it, the bend is
-**bidirectional**: `deform(bone, t)` with `t < 0` accumulates the elbow's turning
-angle the other way, mirroring the bend across the arm axis. The demo slider runs
-−1..+1; which sign an animation uses is decided later. `PHI` (max angle) and `W`
-(rounding span) are the two knobs at the top of the builder.
+`deform(bone, t)` with `t < 0` would mirror the bend across the arm axis (since
+`rest` is straight and `bent`'s lengths match), but once the hand is parented that
+direction bends the elbow the wrong way anatomically — so the elbow is clamped to
+**negative only** (`t ∈ [−1, 0]`). `PHI` (max angle) and `W` (rounding span) are
+the two knobs at the top of the builder; flip `PHI`'s sign to swap which way the
+single valid bend goes.
 
 ## Parenting the hand to the arm
 

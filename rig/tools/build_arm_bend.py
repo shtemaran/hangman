@@ -67,7 +67,7 @@ def frame(t):
     body=place(t)
     doc=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb[0]} {vb[1]} {vb[2]} {vb[3]}" width="{Wpx}">{body}</svg>'
     return np.array(Image.open(io.BytesIO(cairosvg.svg2png(bytestring=doc.encode(),output_width=Wpx,background_color='white'))).convert('RGB'))
-TS=[-1.0,-0.5,0,0.5,1.0]                                # bidirectional: negative t mirrors the bend
+TS=[0,-0.25,-0.5,-0.75,-1.0]                            # elbow bends one way only (negative); positive is anatomically wrong once the hand is on
 sheet=Image.new('RGB',(Wpx*len(TS),H),(255,255,255))
 for i,t in enumerate(TS):
     im=Image.fromarray(frame(t)); ImageDraw.Draw(im).text((6,6),f'bend={t}',fill=(200,0,0)); sheet.paste(im,(i*Wpx,0))
