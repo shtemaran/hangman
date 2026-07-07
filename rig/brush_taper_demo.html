@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Marduk — brush taper-to-nothing (dissolve filter)</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:1rem;display:flex;gap:1.4rem;align-items:flex-start;flex-wrap:wrap}
+  #stage{width:640px;height:300px;border:1px solid #ddd;flex:none;background:#fff}
+  #stage svg{width:100%;height:100%}
+  .panel{display:flex;flex-direction:column;gap:.3rem;font-size:13px;min-width:250px}
+  .panel h4{margin:.5rem 0 .1rem;border-bottom:1px solid #eee}
+  .ctl{display:grid;grid-template-columns:92px 1fr 46px;gap:.4rem;align-items:center}
+  .ctl output{text-align:right;color:#555}
+  p.note{max-width:420px;color:#555;font-size:12px;line-height:1.4}
+</style>
+<h3>Brush taper-to-nothing — spatial dissolve filter (prototype)</h3>
+<div id="stage">loading…</div>
+<div class="panel">
+  <h4>Dissolve boundary</h4>
+  <div id="bnd"></div>
+  <h4>Brush filter</h4>
+  <div id="flt"></div>
+  <h4>Pose</h4>
+  <div id="pose"></div>
+  <p class="note">The stroke is modulated by a ramp (the control field), then blurred, jittered with
+  turbulence noise, and <b>hard-thresholded</b> back to opaque ink — so near the boundary it thins and
+  breaks into dry-brush flecks, and past it, it's gone. Not an opacity fade: the output is solid ink.</p>
+  <button id="dump">log filter SVG</button>
+</div>
+<script src="./bones.js"></script>
+<script>
+const NS='http://www.w3.org/2000/svg';
+Promise.all([fetch('./arm_bend.json').then(r=>r.json()),fetch('./finger_bend.json').then(r=>r.json())]).then(([A,Hd])=>{
+  const arm=A.arm, ORDER=['thumb','pointer','middle','ring','pinky'];
+  // frame the forearm+hand region of hand-spread space
+  const VB=[10,20,150,100];
+  document.getElementById('stage').innerHTML=`<svg xmlns="${NS}" viewBox="${VB.join(' ')}">
+    <defs>
+      <filter id="dis" x="-30%" y="-40%" width="160%" height="180%" color-interpolation-filters="sRGB">
+        <feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="soft"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.09 0.16" numOctaves="2" seed="4" result="n"/>
+        <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  .34 .34 .34 0 0" result="nA"/>
+        <feComposite in="soft" in2="nA" operator="arithmetic" k1="0" k2="1" k3="0.7" k4="-0.35" result="mix"/>
+        <feComponentTransfer in="mix" result="hard"><feFuncA type="table" tableValues="0 0 0 1 1"/></feComponentTransfer>
+        <feColorMatrix in="hard" type="matrix" values="0 0 0 0 .031  0 0 0 0 .11  0 0 0 0 .102  0 0 0 1 0"/>
+      </filter>
+      <linearGradient id="ramp" gradientUnits="userSpaceOnUse" x1="80" y1="0" x2="30" y2="0">
+        <stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+      <mask id="rampM" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="140">
+        <rect x="0" y="0" width="200" height="140" fill="#fff"/><rect x="0" y="0" width="200" height="140" fill="url(#ramp)"/></mask>
+    </defs>
+    <g id="filtered" filter="url(#dis)"><g id="masked" mask="url(#rampM)"></g></g>
+    <line id="bline" stroke="#e00" stroke-width="0.4" stroke-dasharray="2 2"/>
+  </svg>`;
+  const svg=document.querySelector('#stage svg'), masked=svg.querySelector('#masked');
+  // build arm bone + finger paths (in hand-spread space)
+  const armPath=document.createElementNS(NS,'path'); armPath.setAttribute('fill','#081C1A');
+  const armG=document.createElementNS(NS,'g'); armG.setAttribute('transform',`translate(${arm.K[0]} ${arm.K[1]}) rotate(${arm.deg})`); armG.appendChild(armPath); masked.appendChild(armG);
+  const fP={};
+  for(const lb of ORDER){const f=Hd.fingers[lb]; if(!f)continue;
+    const g=document.createElementNS(NS,'g'); g.setAttribute('transform',`translate(${f.K[0]} ${f.K[1]}) rotate(${f.deg})`);
+    const p=document.createElementNS(NS,'path'); p.setAttribute('fill','#081C1A'); g.appendChild(p); masked.appendChild(g); fP[lb]=p;}
+  function poseBones(el,gr){ armPath.setAttribute('d',Bones.deform(arm,el)); for(const lb of ORDER) if(fP[lb]) fP[lb].setAttribute('d',Bones.deform(Hd.fingers[lb],gr)); }
+
+  // ---- controls ----
+  const P={ boundary:78, transition:46, blur:2.2, noiseAmp:0.7, noiseFreqX:0.09, noiseFreqY:0.16, seed:4, elbow:0, grip:0 };
+  const F=svg.querySelector('#dis'), prim=t=>F.querySelector(t);
+  const grad=svg.querySelector('#ramp'), bline=svg.querySelector('#bline');
+  function apply(){
+    prim('feGaussianBlur').setAttribute('stdDeviation',P.blur);
+    prim('feTurbulence').setAttribute('baseFrequency',`${P.noiseFreqX} ${P.noiseFreqY}`);
+    prim('feTurbulence').setAttribute('seed',P.seed);
+    prim('feComposite').setAttribute('k3',P.noiseAmp); prim('feComposite').setAttribute('k4',(-P.noiseAmp/2).toFixed(3));
+    grad.setAttribute('x1',P.boundary); grad.setAttribute('x2',P.boundary-P.transition);
+    bline.setAttribute('x1',P.boundary); bline.setAttribute('y1',VB[1]); bline.setAttribute('x2',P.boundary); bline.setAttribute('y2',VB[1]+VB[3]);
+    poseBones(P.elbow,P.grip);
+  }
+  function slider(host,key,mn,mx,step){ const row=document.createElement('div'); row.className='ctl';
+    row.innerHTML=`<span>${key}</span><input type=range min=${mn} max=${mx} step=${step} value=${P[key]}><output>${P[key]}</output>`;
+    const inp=row.querySelector('input'),out=row.querySelector('output');
+    inp.oninput=()=>{P[key]=+inp.value; out.textContent=(+inp.value); apply();};
+    host.appendChild(row); }
+  slider(document.getElementById('bnd'),'boundary',30,110,1);
+  slider(document.getElementById('bnd'),'transition',5,90,1);
+  [['blur',0.5,5,0.1],['noiseAmp',0,1.4,0.02],['noiseFreqX',0.01,0.3,0.005],['noiseFreqY',0.01,0.3,0.005],['seed',0,30,1]]
+    .forEach(([k,a,b,s])=>slider(document.getElementById('flt'),k,a,b,s));
+  [['elbow',-1,0,0.01],['grip',0,1,0.01]].forEach(([k,a,b,s])=>slider(document.getElementById('pose'),k,a,b,s));
+  document.getElementById('dump').onclick=()=>console.log(new XMLSerializer().serializeToString(F));
+  apply();
+});
+</script>
