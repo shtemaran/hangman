@@ -40,18 +40,24 @@ function createRig(svg, T){
   const pathD=P=>{let d=''; for(let i=0;i<P.length;i++) d+=(i?'L':'M')+P[i][0].toFixed(2)+','+P[i][1].toFixed(2)+' '; return d+'Z';};
   const valence=(slot,e)=>{ const t=T[slot]; return e>=0 ? lerpA(t.neutral,t.happy,e)
                                                           : (t.sad?lerpA(t.neutral,t.sad,-e):t.neutral); };
-  // expression and surprise COMPOSE: valence sets the base shape, surprise ADDS its displacement
-  // (neutral->surprised) on top — so "happy+surprised" keeps the smile, unlike a blend that replaces it.
-  // Per-feature gain (cfg.su*) lets us dial each part back where the two fight (esp. the mouth).
-  const suGain=slot=> slot==='mouth'?cfg.suMouth : slot[0]==='e'?cfg.suEye : cfg.suBrow;
-  const emo=(slot,e,su)=>{ let P=valence(slot,e); const t=T[slot];
-    if(su>0 && t.surprised){ const w=su*suGain(slot);
-      P=P.map((p,i)=>[p[0]+(t.surprised[i][0]-t.neutral[i][0])*w, p[1]+(t.surprised[i][1]-t.neutral[i][1])*w]); }
+  // valence(expr) is the happy/sad base shape. Each overlay emotion (level in lv{}) then composes on top,
+  // per face part, via a GRAB weight cfg.grab[emo][part]:  1 = fully OWN the part (blend the base toward
+  // this emotion's shape),  0 = SHARE it (add this emotion's displacement over the base). So surprise can
+  // grab the mouth & eyes (unique to it) while the brows stay shared with the expression. New emotions =
+  // a new OVERLAYS row + a cfg.grab row.  g=1 -> lerp(base,E,L); g=0 -> base + L*(E-neutral).
+  const OVERLAYS=[ {name:'surprise', key:'surprised'} ];
+  const partOf=slot=> slot==='mouth'?'mouth' : slot[0]==='e'?'eye':'brow';
+  const emo=(slot,e,lv)=>{
+    let P=valence(slot,e); const t=T[slot], neu=t.neutral, part=partOf(slot);
+    for(const ov of OVERLAYS){ const L=clamp(lv[ov.name]||0,0,1), E=t[ov.key]; if(L<=0||!E) continue;
+      const g=(cfg.grab[ov.name]||{})[part], gg=(g==null?0:g);
+      P=P.map((p,i)=>[ p[0]+L*(gg*(E[i][0]-p[0])+(1-gg)*(E[i][0]-neu[i][0])),
+                       p[1]+L*(gg*(E[i][1]-p[1])+(1-gg)*(E[i][1]-neu[i][1])) ]); }
     return P; };
-  const setEye=(s,e,su,openW)=>{ let P=emo('eye-'+s,e,su); if(openW>0)P=lerpA(P,T['eye-'+s].shut,openW); eyeP[s].setAttribute('d',pathD(P)); };
-  const setMouth=(e,su)=>mouthP.setAttribute('d',pathD(emo('mouth',e,su)));
-  const setBrow=(s,e,su)=>browP[s].setAttribute('d',pathD(emo('brow-'+s,e,su)));
-  setBrow('l',1,0); setBrow('r',1,0); setEye('l',1,0,0); setEye('r',1,0,0); setMouth(1,0);
+  const setEye=(s,e,lv,openW)=>{ let P=emo('eye-'+s,e,lv); if(openW>0)P=lerpA(P,T['eye-'+s].shut,openW); eyeP[s].setAttribute('d',pathD(P)); };
+  const setMouth=(e,lv)=>mouthP.setAttribute('d',pathD(emo('mouth',e,lv)));
+  const setBrow=(s,e,lv)=>browP[s].setAttribute('d',pathD(emo('brow-'+s,e,lv)));
+  setBrow('l',1,{}); setBrow('r',1,{}); setEye('l',1,{},0); setEye('r',1,{},0); setMouth(1,{});
 
   // ---- pivots from geometry ----
   const bb=el=>el.getBBox();
@@ -82,16 +88,16 @@ function createRig(svg, T){
   const cfg={ headX:22, headY:16, headTilt:7, gazeYaw:38, gazePitch:26,
               constrainEye:0, constrainMouth:1,      // 0=free swing to edge, 1=sphere-constrained
               browDrop:3, breathScale:0.02, torsoExpand:0.14, breathBob:3, lean:6,
-              suMouth:1, suEye:1, suBrow:1 };        // per-feature surprise gain (additive over expression)
+              grab:{ surprise:{ mouth:1, eye:1, brow:0 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
             eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
-    const e=clamp(p.expr,-1,1), su=clamp(p.surprise,0,1);
-    setEye('l', e, su, 1-clamp(p.eyeOpenL,0,1));
-    setEye('r', e, su, 1-clamp(p.eyeOpenR,0,1));
-    setMouth(e,su); setBrow('l',e,su); setBrow('r',e,su);
+    const e=clamp(p.expr,-1,1), lv={surprise:clamp(p.surprise,0,1)};
+    setEye('l', e, lv, 1-clamp(p.eyeOpenL,0,1));
+    setEye('r', e, lv, 1-clamp(p.eyeOpenR,0,1));
+    setMouth(e,lv); setBrow('l',e,lv); setBrow('r',e,lv);
     // gaze/head-turn: reproject each face feature on the head sphere (translate + foreshorten)
     const yaw=clamp(p.gazeX,-1,1)*cfg.gazeYaw*Math.PI/180, pitch=clamp(p.gazeY,-1,1)*cfg.gazePitch*Math.PI/180;
     // k = latitude constraint: 0 = free swing (reaches silhouette), 1 = true sphere (stays inside at its height)
