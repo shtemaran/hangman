@@ -68,13 +68,13 @@ function createRig(svg, T, mods){
   // ---- modifier "adds": extra features drawn on the face (placed via head-aligned transform),
   //      each zooming in from nothing as the modifier level rises (staggered, so they pop in one by one).
   const smooth01=u=>{u=clamp(u,0,1); return u*u*(3-2*u);};
-  const MODADD={};   // name -> [{zg, c:[x,y], a:staggerStart}]
+  const MODADD={};   // name -> [{rg,zg, c:[x,y], gaze, a:staggerStart}]  (adds are in win-local face coords)
   for(const mn in MODS){ const m=MODS[mn]; if(!m.adds) continue;
-    const g=mkG('rig-mod-'+mn); g.setAttribute('transform', m.placement||''); head.appendChild(g);
+    const g=mkG('rig-mod-'+mn); head.appendChild(g);
     const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
-      const zg=document.createElementNS(NS,'g'), pth=document.createElementNS(NS,'path');
-      pth.setAttribute('fill','#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); g.appendChild(zg);
-      return {zg, c:a.c, a:(labels.length>1? i/(labels.length-1)*0.5 : 0)}; });   // stagger starts over [0,0.5]
+      const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g'), pth=document.createElementNS(NS,'path');
+      pth.setAttribute('fill','#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); rg.appendChild(zg); g.appendChild(rg);
+      return {rg, zg, c:a.c, gaze:a.gaze||'eye', a:(labels.length>1? i/(labels.length-1)*0.5 : 0)}; });  // stagger over [0,0.5]
   }
   const ZOOM_SPAN=0.5;
 
@@ -145,8 +145,10 @@ function createRig(svg, T, mods){
     const tsx=1+(p.breath-0.5)*cfg.torsoExpand;          // torso: expand horizontally with the inhale
     $('win-torso')&&X($('win-torso'), `translate(${torsoC[0]} ${torsoC[1]}) scale(${tsx} 1) translate(${-torsoC[0]} ${-torsoC[1]})`);
     for(const n in arms) arms[n].style.display=(p.hands===n)?'':'none';   // hand pose swap
-    for(const mn in MODADD){ const L=lv[mn];               // each add zooms in from nothing, staggered
-      for(const it of MODADD[mn]){ const z=smooth01((L-it.a)/ZOOM_SPAN);
+    for(const mn in MODADD){ const L=lv[mn];               // each add: gaze-reproject (eye/mouth style) + zoom in from nothing
+      for(const it of MODADD[mn]){
+        it.rg.setAttribute('transform', sphere(it.c[0], it.c[1], 0, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));
+        const z=smooth01((L-it.a)/ZOOM_SPAN);
         it.zg.setAttribute('transform',`translate(${it.c[0]} ${it.c[1]}) scale(${z.toFixed(4)}) translate(${-it.c[0]} ${-it.c[1]})`); } }
   }
   let raf=requestAnimationFrame(function loop(){flush(); raf=requestAnimationFrame(loop);});
