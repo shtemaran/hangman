@@ -79,7 +79,7 @@ function createRig(svg, T, mods){
       mouthC=[v.reduce((s,p)=>s+p[0],0)/v.length, v.reduce((s,p)=>s+p[1],0)/v.length]; }
     const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
       const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g'), pth=document.createElementNS(NS,'path');
-      pth.setAttribute('fill','#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); rg.appendChild(zg); g.appendChild(rg);
+      pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); rg.appendChild(zg); g.appendChild(rg);
       return {rg, zg, c:a.c, zc:(lb==='lipstick'&&mouthC)?mouthC:a.c, gaze:a.gaze||'eye',   // zc = zoom pivot (lipstick grows from the mouth centre)
               a: lb==='lipstick' ? MOUTH_MORPH_END : (labels.length>1? i/(labels.length-1)*0.5 : 0) }; });   // lipstick waits for the mouth morph
   }

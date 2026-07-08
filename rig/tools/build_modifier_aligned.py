@@ -10,10 +10,11 @@ generic) is ignored.
 
   python tools/build_modifier_aligned.py king generated/king_align.svg happy
 """
-import cairosvg, io, re, json, sys, numpy as np
+import cairosvg, io, re, json, sys, numpy as np, xml.etree.ElementTree as ET
 from PIL import Image
 from scipy import ndimage
 from skimage import measure
+SVGNS='{http://www.w3.org/2000/svg}'; INK='{http://www.inkscape.org/namespaces/inkscape}'
 MOD  = sys.argv[1] if len(sys.argv)>1 else 'king'
 ASVG = sys.argv[2] if len(sys.argv)>2 else 'generated/king_align.svg'
 EXPR = sys.argv[3] if len(sys.argv)>3 else 'happy'
@@ -24,31 +25,38 @@ CONFIG={
  'clown':{'versions':{'mouth':'mouth','l-brow':'brow-l','r-brow':'brow-r','l-eye':'eye-l','r-eye':'eye-r'},
           'adds':{'nose':'eye','lipstick':'mouth','l-top-makeup':'eye','l-bottom-makeup':'eye','r-top-makeup':'eye','r-bottom-makeup':'eye'}},
  'king':{'versions':{'mouth':'mouth'},                                          # eyes/brows stay generic -> emotions still work
-         'adds':{'crown':'none','crown-jewels':'none','crown-pearls':'none',    # crown rides the head (no gaze reproject)
+         'adds':{'crown-occluder':{'gaze':'none','fill':'#ffffff'},             # white, drawn FIRST -> hides the head arc under the crown
+                 'crown':'none','crown-jewels':'none','crown-pearls':'none',    # crown rides the head (no gaze reproject)
                  'crown-background-left':'none','crown-background-right':'none',
                  'l-mustache':'mouth','r-mustache':'mouth'}},
 }
 cfg=CONFIG[MOD]
 
-s=open(ASVG).read(); VB=[float(x) for x in re.search(r'viewBox="([^"]*)"',s).group(1).split()]   # win-local face space
-def tf_of(tag): m=re.search(r'transform="([^"]*)"',tag); return m.group(1) if m else ''
-# OUTER = ancestor chain above each part = modifier LAYER transform + <name>-group transform (both may
-# carry the user's alignment move); per-part sub-group transform is applied inside mask_of.
-gi=s.index(f'id="{MOD}-group"')
-layer_tag=[m.group(0) for m in re.finditer(r'<g\b[^>]*groupmode="layer"[^>]*>', s) if m.start()<gi][-1]
-grp_tag=re.search(r'<g\b[^>]*id="'+re.escape(MOD+'-group')+r'"[^>]*>', s).group(0)
-OUTER=(tf_of(layer_tag)+' '+tf_of(grp_tag)).strip()
-def part(label):                                          # (sub-group transform, [d's])  — sub-group id or flat labelled path
-    m=re.search(r'<g\b([^>]*id="'+re.escape(MOD+'-'+label)+r'"[^>]*)>(.*?)</g>', s, re.S)
-    if m: return tf_of(m.group(1)), re.findall(r'\bd="([^"]*)"', m.group(2))
-    for p in re.findall(r'<path\b[^>]*?/>', s, re.S):
-        if f'inkscape:label="{label}"' in p: return tf_of(p), re.findall(r'\bd="([^"]*)"', p)
-    return '', []
-def part_ds(label): return part(label)[1]
-def mask_of(label, W):                                    # render the part under its full transform chain -> win-local mask
-    H=int(round(W*VB[3]/VB[2])); subtf,ds=part(label)
-    inner=''.join(f'<path fill="#000" d="{d}"/>' for d in ds)
-    doc=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{VB[0]} {VB[1]} {VB[2]} {VB[3]}" width="{W}" height="{H}"><g transform="{OUTER}"><g transform="{subtf}">{inner}</g></g></svg>'
+# parse the aligned SVG; find each part (by id "<name>-<label>" or inkscape:label) and its FULL
+# ancestor transform chain, so parts in different places/spaces (e.g. a top-level occluder layer vs
+# parts under <name>-group) each render correctly into win-local.
+tree=ET.parse(ASVG); root=tree.getroot(); VB=[float(x) for x in root.get('viewBox').split()]
+parent={c:p for p in root.iter() for c in p}
+def find_part(label):
+    for el in root.iter():
+        if el.tag.split('}')[-1] in ('g','path') and (el.get(INK+'label')==label or el.get('id')==f'{MOD}-{label}'):
+            return el
+    return None
+def chain_tf(el):
+    tfs=[]; cur=el
+    while cur is not None:
+        if cur.get('transform'): tfs.append(cur.get('transform'))
+        cur=parent.get(cur)
+    return ' '.join(reversed(tfs))                        # root-most first
+def part_ds(label):
+    el=find_part(label)
+    if el is None: return []
+    if el.tag.split('}')[-1]=='path': return [el.get('d')] if el.get('d') else []
+    return [p.get('d') for p in el.iter(SVGNS+'path') if p.get('d')]
+def mask_of(label, W):
+    H=int(round(W*VB[3]/VB[2])); el=find_part(label); tf=chain_tf(el) if el is not None else ''
+    inner=''.join(f'<path fill="#000" d="{d}"/>' for d in part_ds(label))
+    doc=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{VB[0]} {VB[1]} {VB[2]} {VB[3]}" width="{W}" height="{H}"><g transform="{tf}">{inner}</g></svg>'
     return np.array(Image.open(io.BytesIO(cairosvg.svg2png(bytestring=doc.encode(),output_width=W,output_height=H,background_color='white'))).convert('L'))<128, W, H
 def px2vb(y,x,W,H): return ((x-1)/W*VB[2]+VB[0], (y-1)/H*VB[3]+VB[1])
 def smooth(pts):
@@ -89,9 +97,11 @@ def correspond(A,B):
     _,fl,r=best; return np.roll(B[::fl],r,0)
 
 out={'adds':{}, 'versions':{}}
-for lb,gaze in cfg['adds'].items():
-    if part_ds(lb): out['adds'][lb]={'d':trace_wl(lb),'c':centre(lb),'gaze':gaze}
-    else: print('  (missing add:',lb,')')
+for lb,spec in cfg['adds'].items():
+    if not part_ds(lb): print('  (missing add:',lb,')'); continue
+    a={'d':trace_wl(lb),'c':centre(lb),'gaze':(spec['gaze'] if isinstance(spec,dict) else spec)}
+    if isinstance(spec,dict) and spec.get('fill'): a['fill']=spec['fill']
+    out['adds'][lb]=a
 FTd=json.load(open(FT))
 for lb,slot in cfg['versions'].items():
     if not part_ds(lb): print('  (missing version:',lb,')'); continue
