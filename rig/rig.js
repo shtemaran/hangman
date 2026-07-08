@@ -73,13 +73,14 @@ function createRig(svg, T, mods){
   const ZOOM_SPAN=0.5;   // adds zoom over ~half the level, staggered; the lipstick waits for the mouth morph
   const MODADD={};   // name -> [{rg,zg, c:[x,y], gaze, a:staggerStart}]  (adds are in win-local face coords)
   for(const mn in MODS){ const m=MODS[mn]; if(!m.adds) continue;
-    const g=mkG('rig-mod-'+mn); head.appendChild(g);
+    const overG=mkG('rig-mod-'+mn); head.appendChild(overG);                 // adds ON TOP of the face
+    const underG=mkG('rig-mod-'+mn+'-under'); head.insertBefore(underG, head.children[1]||null);  // `below` adds go under the features (occlude head, keep brows)
     let mouthC=null;                                          // clown mouth centre — the lipstick grows from a point here
     if(m.versions&&m.versions.mouth){ const v=Object.values(m.versions.mouth)[0];
       mouthC=[v.reduce((s,p)=>s+p[0],0)/v.length, v.reduce((s,p)=>s+p[1],0)/v.length]; }
     const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
       const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g'), pth=document.createElementNS(NS,'path');
-      pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); rg.appendChild(zg); g.appendChild(rg);
+      pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); rg.appendChild(zg); (a.below?underG:overG).appendChild(rg);
       return {rg, zg, c:a.c, zc:(lb==='lipstick'&&mouthC)?mouthC:a.c, gaze:a.gaze||'eye',   // zc = zoom pivot (lipstick grows from the mouth centre)
               a: lb==='lipstick' ? MOUTH_MORPH_END : (labels.length>1? i/(labels.length-1)*0.5 : 0) }; });   // lipstick waits for the mouth morph
   }

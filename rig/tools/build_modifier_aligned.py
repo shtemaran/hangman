@@ -25,7 +25,7 @@ CONFIG={
  'clown':{'versions':{'mouth':'mouth','l-brow':'brow-l','r-brow':'brow-r','l-eye':'eye-l','r-eye':'eye-r'},
           'adds':{'nose':'eye','lipstick':'mouth','l-top-makeup':'eye','l-bottom-makeup':'eye','r-top-makeup':'eye','r-bottom-makeup':'eye'}},
  'king':{'versions':{'mouth':'mouth'},                                          # eyes/brows stay generic -> emotions still work
-         'adds':{'crown-occluder':{'gaze':'none','fill':'#ffffff'},             # white, drawn FIRST -> hides the head arc under the crown
+         'adds':{'crown-occluder':{'gaze':'none','fill':'#ffffff','below':True}, # white, UNDER the face features -> hides the head arc but keeps brows visible
                  'crown':'none','crown-jewels':'none','crown-pearls':'none',    # crown rides the head (no gaze reproject)
                  'crown-background-left':'none','crown-background-right':'none',
                  'l-mustache':'mouth','r-mustache':'mouth'}},
@@ -48,15 +48,16 @@ def chain_tf(el):
         if cur.get('transform'): tfs.append(cur.get('transform'))
         cur=parent.get(cur)
     return ' '.join(reversed(tfs))                        # root-most first
-def part_ds(label):
-    el=find_part(label)
+def part_paths(label):                                    # [(full transform chain, d)] per path — chain from the PATH leaf,
+    el=find_part(label)                                   # since a path can carry its own transform (e.g. an Inkscape reparent bake)
     if el is None: return []
-    if el.tag.split('}')[-1]=='path': return [el.get('d')] if el.get('d') else []
-    return [p.get('d') for p in el.iter(SVGNS+'path') if p.get('d')]
+    ps=[el] if el.tag.split('}')[-1]=='path' else list(el.iter(SVGNS+'path'))
+    return [(chain_tf(p), p.get('d')) for p in ps if p.get('d')]
+def part_ds(label): return [d for _,d in part_paths(label)]
 def mask_of(label, W):
-    H=int(round(W*VB[3]/VB[2])); el=find_part(label); tf=chain_tf(el) if el is not None else ''
-    inner=''.join(f'<path fill="#000" d="{d}"/>' for d in part_ds(label))
-    doc=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{VB[0]} {VB[1]} {VB[2]} {VB[3]}" width="{W}" height="{H}"><g transform="{tf}">{inner}</g></svg>'
+    H=int(round(W*VB[3]/VB[2]))
+    inner=''.join(f'<g transform="{tf}"><path fill="#000" d="{d}"/></g>' for tf,d in part_paths(label))
+    doc=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{VB[0]} {VB[1]} {VB[2]} {VB[3]}" width="{W}" height="{H}">{inner}</svg>'
     return np.array(Image.open(io.BytesIO(cairosvg.svg2png(bytestring=doc.encode(),output_width=W,output_height=H,background_color='white'))).convert('L'))<128, W, H
 def px2vb(y,x,W,H): return ((x-1)/W*VB[2]+VB[0], (y-1)/H*VB[3]+VB[1])
 def smooth(pts):
@@ -100,7 +101,9 @@ out={'adds':{}, 'versions':{}}
 for lb,spec in cfg['adds'].items():
     if not part_ds(lb): print('  (missing add:',lb,')'); continue
     a={'d':trace_wl(lb),'c':centre(lb),'gaze':(spec['gaze'] if isinstance(spec,dict) else spec)}
-    if isinstance(spec,dict) and spec.get('fill'): a['fill']=spec['fill']
+    if isinstance(spec,dict):
+        if spec.get('fill'): a['fill']=spec['fill']
+        if spec.get('below'): a['below']=True
     out['adds'][lb]=a
 FTd=json.load(open(FT))
 for lb,slot in cfg['versions'].items():
