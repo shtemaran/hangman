@@ -1,26 +1,30 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Marduk — cage bars</title>
+<title>Marduk — cage bars (14 steps)</title>
 <style>
   body{font-family:system-ui,sans-serif;margin:1.2rem;display:flex;flex-direction:column;gap:.8rem;align-items:flex-start}
   #stage{width:440px;height:380px;border:1px solid #ddd}
   #stage svg{width:100%;height:100%}
   .row{display:flex;gap:.7rem;align-items:center;font-size:14px}
+  input[type=range]{width:260px}
 </style>
-<h3>Marduk cage — bars drop / slide in; sadder as the cage fills</h3>
+<h3>Marduk cage — 14 game steps over 8 bars (2 drop full, 6 drop in two halves)</h3>
 <div id="stage">loading…</div>
 <div class="row">
-  <button id="addbar">+ bar</button><button id="rmbar">− bar</button>
-  <span id="count">0 / 8</span>
+  <button id="minus">− step</button><button id="plus">+ step</button>
+  <input id="scrub" type="range" min="0" max="14" step="1" value="0">
+  <span id="count">step 0 / 14</span>
+</div>
+<div class="row">
   <button id="cage">Cage all</button><button id="uncage">Break free</button>
   <label><input type="checkbox" id="idle" checked> idle</label>
 </div>
 <script src="./rig.js"></script>
 <script>
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const backOut=(t,s=1.3)=>{const c3=s+1; return 1+c3*Math.pow(t-1,3)+s*Math.pow(t-1,2);}; // single gentle overshoot
-const easeIn=t=>t*t*t;                                                                    // accelerate out, no bounce
-const DUR_IN=950, DUR_OUT=460, STAGGER=150;
+const backOut=(t,s=1.3)=>{const c3=s+1; return 1+c3*Math.pow(t-1,3)+s*Math.pow(t-1,2);}; // gentle overshoot (settle bounce)
+const easeIn=t=>t*t*t;                                                                    // accelerate away, no bounce
+const DUR_IN=820, DUR_OUT=420;
 
 Promise.all([
   fetch('../assets/marduk_semantic.svg').then(r=>r.text()),
@@ -29,51 +33,68 @@ Promise.all([
   document.getElementById('stage').innerHTML=svgText;
   const svg=document.querySelector('#stage svg'), NS='http://www.w3.org/2000/svg';
   const rig=createRig(svg,targets); rig.idle(true);
-  const vb=svg.getAttribute('viewBox').split(' ').map(Number);
-  const [VX,VY,VW,VH]=vb, M=40;
+  const [VX,VY,VW,VH]=svg.getAttribute('viewBox').split(' ').map(Number), M=40;
 
+  // clone each cage bar into its own group; k: 1 = fully off-frame, 0 = at rest, 0.5 = half in
   const src=svg.querySelector('#lose-bars');
   const cage=document.createElementNS(NS,'g'); cage.id='cage'; svg.appendChild(cage);
   const bars=[...src.querySelectorAll('path,polygon')].map(el=>{
     const g=document.createElementNS(NS,'g'); g.appendChild(el.cloneNode(true)); cage.appendChild(g);
-    const bb=g.getBBox(); return {g,bb,vert:bb.height>bb.width,k:1};  // k: 1 = fully off-frame, 0 = at rest
+    const bb=g.getBBox(); return {g,bb,vert:bb.height>bb.width,k:1,goal:1};
   });
   const V=bars.filter(b=>b.vert).sort((a,b)=>a.bb.x-b.bb.x);
   const H=bars.filter(b=>!b.vert).sort((a,b)=>a.bb.y-b.bb.y);
-  V.forEach(b=>{ b.sx=0; b.sy=-(b.bb.y+b.bb.height - VY + M); });      // drop from above (fully clears top)
-  const dir=[-1,1,1,-1];                                              // L,R,R,L top->bottom
+  V.forEach(b=>{ b.sx=0; b.sy=-(b.bb.y+b.bb.height - VY + M); });      // drop from above (clears top)
+  const dir=[-1,1,1,-1];                                              // H bars slide off L,R,R,L top->bottom
   H.forEach((b,i)=>{ const d=dir[i%4]; b.sy=0;
-    b.sx = d>0 ? (VX+VW - b.bb.x + M) : -(b.bb.x+b.bb.width - VX + M); // slide fully off its side
-  });
-  const order=[...V,...H];
+    b.sx = d>0 ? (VX+VW - b.bb.x + M) : -(b.bb.x+b.bb.width - VX + M); });
+  const order=[...V,...H]; order.forEach((b,i)=>b.i=i);               // drop sequence
+  const N=order.length, TOTAL=2+(N-2)*2;                             // 8 bars -> 14 steps
   const place=b=>b.g.setAttribute('transform',`translate(${b.sx*b.k} ${b.sy*b.k})`);
   bars.forEach(place);
 
-  // per-bar animation toward k=0 (in) or k=1 (out)
+  // step -> per-bar target k. First 2 bars drop fully (1 step each); the rest drop in two halves.
+  function kAt(i, step){
+    if(i<2) return step>=(i+1) ? 0 : 1;
+    const half=3+(i-2)*2, full=half+1;                              // bar i: half at `half`, full at `full`
+    return step>=full ? 0 : step>=half ? 0.5 : 1;
+  }
+
+  // per-bar tween from current k to a target k
   const anims=new Map(); let raf=null;
   function loop(now){
-    for(const [b,a] of anims){ const p=(now-a.t0)/a.dur;
-      if(p<0) continue;
-      if(p>=1){ b.k=a.toIn?0:1; place(b); anims.delete(b); continue; }
-      b.k = a.toIn ? (1-backOut(p)) : easeIn(p); place(b);
+    for(const [b,a] of anims){ const p=(now-a.t0)/a.dur; if(p<0) continue;
+      if(p>=1){ b.k=a.to; place(b); anims.delete(b); continue; }
+      const e = a.to<a.from ? backOut(p) : easeIn(p);               // coming in bounces, going out accelerates
+      b.k = a.from+(a.to-a.from)*e; place(b);
     }
     raf = anims.size ? requestAnimationFrame(loop) : null;
   }
-  const go=(b,toIn,dur,delay=0)=>{ anims.set(b,{t0:performance.now()+delay,toIn,dur}); if(raf==null) raf=requestAnimationFrame(loop); };
+  const go=(b,to,delay=0)=>{ anims.set(b,{t0:performance.now()+delay,from:b.k,to,dur:to<b.k?DUR_IN:DUR_OUT}); if(raf==null) raf=requestAnimationFrame(loop); };
 
-  // expression follows the cage: 0 bars = happy (+1) ... 8 bars = sad (-1), eased
-  let shown=0, exprTarget=1, exprRaf=null;
+  // expression follows the cage: step 0 = happy (+1) ... step 14 = sad (-1)
+  let step=0, exprTarget=1, exprRaf=null;
   function exprLoop(){ rig.p.expr += (exprTarget-rig.p.expr)*0.12;
-    if(Math.abs(exprTarget-rig.p.expr)>0.002) exprRaf=requestAnimationFrame(exprLoop);
-    else { rig.p.expr=exprTarget; exprRaf=null; } }
-  const cnt=document.getElementById('count');
-  const refresh=()=>{ cnt.textContent=`${shown} / 8`; exprTarget=1-(shown/8)*2; if(exprRaf==null) exprRaf=requestAnimationFrame(exprLoop); };
+    if(Math.abs(exprTarget-rig.p.expr)>0.002) exprRaf=requestAnimationFrame(exprLoop); else { rig.p.expr=exprTarget; exprRaf=null; } }
+  const cnt=document.getElementById('count'), scrub=document.getElementById('scrub');
+  function refresh(){ cnt.textContent=`step ${step} / ${TOTAL}`; scrub.value=step;
+    exprTarget=1-(step/TOTAL)*2; if(exprRaf==null) exprRaf=requestAnimationFrame(exprLoop); }
 
-  document.getElementById('addbar').onclick=()=>{ if(shown<8){ go(order[shown],true,DUR_IN); shown++; refresh(); } };
-  document.getElementById('rmbar').onclick =()=>{ if(shown>0){ shown--; go(order[shown],false,DUR_OUT); refresh(); } };
-  document.getElementById('cage').onclick  =()=>{ let k=0; for(let i=shown;i<8;i++){ go(order[i],true,DUR_IN,k*STAGGER); k++; } shown=8; refresh(); };
-  document.getElementById('uncage').onclick=()=>{ let k=0; for(let i=shown-1;i>=0;i--){ go(order[i],false,DUR_OUT,k*90); k++; } shown=0; refresh(); };
+  function setStep(n, animate, stagger=0){
+    step=clamp(Math.round(n),0,TOTAL); let k=0;
+    for(const b of order){ const t=kAt(b.i,step);
+      if(t===b.goal) continue; b.goal=t;
+      if(animate){ go(b,t,k*stagger); k++; } else { b.k=t; place(b); }
+    }
+    refresh();
+  }
+  setStep(0,false);
+
+  document.getElementById('plus').onclick =()=>setStep(step+1,true);
+  document.getElementById('minus').onclick=()=>setStep(step-1,true);
+  scrub.oninput=e=>setStep(+e.target.value,true);
+  document.getElementById('cage').onclick  =()=>setStep(TOTAL,true,110);
+  document.getElementById('uncage').onclick=()=>setStep(0,true,70);
   document.getElementById('idle').onchange=e=>rig.idle(e.target.checked);
-  refresh();
 });
 </script>
