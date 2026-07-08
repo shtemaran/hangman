@@ -81,13 +81,25 @@ Promise.all([
   const go=(b,to,delay=0)=>{ const inn=to<b.k, dur=(inn?DUR_IN:DUR_OUT)*Math.sqrt(Math.max(Math.abs(to-b.k),0.25));
     anims.set(b,{t0:performance.now()+delay,from:b.k,to,dur}); if(raf==null) raf=requestAnimationFrame(loop); };
 
-  // expression follows the cage: step 0 = happy (+1) ... step 14 = sad (-1)
-  let step=0, exprTarget=1, exprRaf=null;
-  function exprLoop(){ rig.p.expr += (exprTarget-rig.p.expr)*0.12;
-    if(Math.abs(exprTarget-rig.p.expr)>0.002) exprRaf=requestAnimationFrame(exprLoop); else { rig.p.expr=exprTarget; exprRaf=null; } }
+  // expression follows the cage: step 0 = happy (+1) ... step 14 = sad (-1). On each change it snaps to the
+  // full reaction, then "eases off" a few % back toward neutral (not all the way) over a randomized ~1.5-3 s.
+  let step=0, exprRaf=null, reactT=1, relaxT=1, relaxStart=0, relaxEnd=0;
+  function setExpr(){
+    const np=1-(step/TOTAL)*2;                             // nominal expression for this step = the full reaction
+    reactT=np; relaxT=np*(1-(0.05+Math.random()*0.05));    // settle 5-10% back toward neutral, not all the way
+    const now=performance.now();
+    relaxStart=now+400;                                    // hold the reaction a beat, then relax
+    relaxEnd=relaxStart+(1500+Math.random()*1500);         // over a randomized couple of seconds
+    if(exprRaf==null) exprRaf=requestAnimationFrame(exprLoop);
+  }
+  function exprLoop(){
+    const now=performance.now(); let target=reactT;
+    if(now>=relaxStart){ const u=clamp((now-relaxStart)/(relaxEnd-relaxStart),0,1); target=reactT+(relaxT-reactT)*(u*u*(3-2*u)); }
+    rig.p.expr += (target-rig.p.expr)*0.12;
+    if(now<relaxEnd || Math.abs(target-rig.p.expr)>0.002) exprRaf=requestAnimationFrame(exprLoop); else { rig.p.expr=target; exprRaf=null; }
+  }
   const cnt=document.getElementById('count'), scrub=document.getElementById('scrub');
-  function refresh(){ cnt.textContent=`step ${step} / ${TOTAL}`; scrub.value=step;
-    exprTarget=1-(step/TOTAL)*2; if(exprRaf==null) exprRaf=requestAnimationFrame(exprLoop); }
+  function refresh(){ cnt.textContent=`step ${step} / ${TOTAL}`; scrub.value=step; setExpr(); }
 
   function setStep(n, animate, stagger=0){
     step=clamp(Math.round(n),0,TOTAL); let k=0, dropped=null;
