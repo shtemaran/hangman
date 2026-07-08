@@ -15,6 +15,7 @@ function createRig(svg, T, mods){
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const MODS=mods||{};                                     // modifiers.json: {name:{placement,adds,versions}}
   const exprKey=e=> e>=0.5?'happy' : e<=-0.5?'sad' : 'neutral';
+  const MOUTH_MORPH_END=0.5;                               // mouth finishes morphing by here, so the lipstick add can wait for it
 
   $('lose').style.display='none'; $('win').style.display='';
   const rootG=$('win');
@@ -56,8 +57,9 @@ function createRig(svg, T, mods){
       P=P.map((p,i)=>[ p[0]+L*(gg*(E[i][0]-p[0])+(1-gg)*(E[i][0]-neu[i][0])),
                        p[1]+L*(gg*(E[i][1]-p[1])+(1-gg)*(E[i][1]-neu[i][1])) ]); }
     // modifier morph: blend toward the modifier's per-expression version (exact key, else any available)
-    for(const mn in MODS){ const L=clamp(lv[mn]||0,0,1), V=MODS[mn].versions&&MODS[mn].versions[slot]; if(L<=0||!V) continue;
+    for(const mn in MODS){ const raw=clamp(lv[mn]||0,0,1), V=MODS[mn].versions&&MODS[mn].versions[slot]; if(raw<=0||!V) continue;
       const Wv=V[exprKey(e)]||V[Object.keys(V)[0]]; if(!Wv) continue;
+      const L = part==='mouth' ? clamp(raw/MOUTH_MORPH_END,0,1) : raw;    // mouth morphs faster (done before the lipstick appears)
       P=P.map((p,i)=>[ p[0]+L*(Wv[i][0]-p[0]), p[1]+L*(Wv[i][1]-p[1]) ]); }
     return P; };
   const setEye=(s,e,lv,openW)=>{ let P=emo('eye-'+s,e,lv); if(openW>0)P=lerpA(P,T['eye-'+s].shut,openW); eyeP[s].setAttribute('d',pathD(P)); };
@@ -68,15 +70,16 @@ function createRig(svg, T, mods){
   // ---- modifier "adds": extra features drawn on the face (placed via head-aligned transform),
   //      each zooming in from nothing as the modifier level rises (staggered, so they pop in one by one).
   const smooth01=u=>{u=clamp(u,0,1); return u*u*(3-2*u);};
+  const ZOOM_SPAN=0.5;   // adds zoom over ~half the level, staggered; the lipstick waits for the mouth morph
   const MODADD={};   // name -> [{rg,zg, c:[x,y], gaze, a:staggerStart}]  (adds are in win-local face coords)
   for(const mn in MODS){ const m=MODS[mn]; if(!m.adds) continue;
     const g=mkG('rig-mod-'+mn); head.appendChild(g);
     const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
       const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g'), pth=document.createElementNS(NS,'path');
       pth.setAttribute('fill','#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); rg.appendChild(zg); g.appendChild(rg);
-      return {rg, zg, c:a.c, gaze:a.gaze||'eye', a:(labels.length>1? i/(labels.length-1)*0.5 : 0)}; });  // stagger over [0,0.5]
+      return {rg, zg, c:a.c, gaze:a.gaze||'eye',
+              a: lb==='lipstick' ? MOUTH_MORPH_END : (labels.length>1? i/(labels.length-1)*0.5 : 0) }; });   // lipstick waits for the mouth morph
   }
-  const ZOOM_SPAN=0.5;
 
   // ---- pivots from geometry ----
   const bb=el=>el.getBBox();
@@ -116,7 +119,7 @@ function createRig(svg, T, mods){
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
     const e=clamp(p.expr,-1,1), lv={surprise:clamp(p.surprise,0,1), thoughtful:clamp(p.thoughtful,0,1), confused:clamp(p.confused,0,1)};
-    for(const mn in MODS) lv[mn]=clamp(p[mn]||0,0,1);      // modifier morph levels (also drive their add zooms below)
+    for(const mn in MODS) lv[mn]=clamp(p[mn]||0,0,1);      // raw modifier level (emo remaps the mouth to morph faster)
     setEye('l', e, lv, 1-clamp(p.eyeOpenL,0,1));
     setEye('r', e, lv, 1-clamp(p.eyeOpenR,0,1));
     setMouth(e,lv); setBrow('l',e,lv); setBrow('r',e,lv);
@@ -145,7 +148,7 @@ function createRig(svg, T, mods){
     const tsx=1+(p.breath-0.5)*cfg.torsoExpand;          // torso: expand horizontally with the inhale
     $('win-torso')&&X($('win-torso'), `translate(${torsoC[0]} ${torsoC[1]}) scale(${tsx} 1) translate(${-torsoC[0]} ${-torsoC[1]})`);
     for(const n in arms) arms[n].style.display=(p.hands===n)?'':'none';   // hand pose swap
-    for(const mn in MODADD){ const L=lv[mn];               // each add: gaze-reproject (eye/mouth style) + zoom in from nothing
+    for(const mn in MODADD){ const L=clamp(p[mn]||0,0,1);  // raw level: each add gaze-reprojects + zooms in from nothing (staggered, after the morph)
       for(const it of MODADD[mn]){
         it.rg.setAttribute('transform', sphere(it.c[0], it.c[1], 0, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));
         const z=smooth01((L-it.a)/ZOOM_SPAN);
