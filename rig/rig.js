@@ -122,19 +122,26 @@ function createRig(svg, T){
   function wink(side='l',D=260){ const key='eyeOpen'+side.toUpperCase(); drive(D,k=>{p[key]=clamp(easeShut(k),0,1);}); }
 
   // ---- idle behaviour ----
-  let idleOn=false, tBlink=0, phase=Math.random()*6, gT=[0,0], tGaze=0;
+  let idleOn=false, tBlink=0, phase=Math.random()*6, gT=[0,0], tGaze=0, focusT=null, focusUntil=0;
   (function idleLoop(now){
+    const focusing = focusT && now<focusUntil;                 // a lookAt() glance holds the gaze
     if(idleOn){
       phase+=1/60; p.breath=0.5+0.45*Math.sin(phase*2*Math.PI/3.6);
       if(now>tBlink){ blink(); if(Math.random()<0.22) setTimeout(blink,240); tBlink=now+2000+Math.random()*4000; }
-      if(now>tGaze){ gT=[(Math.random()*2-1)*0.7,(Math.random()*2-1)*0.5]; tGaze=now+1400+Math.random()*3000; }
-      p.gazeX+=(gT[0]-p.gazeX)*0.06; p.gazeY+=(gT[1]-p.gazeY)*0.06;
-      p.headX+=(gT[0]*0.35-p.headX)*0.03; p.headY+=(gT[1]*0.3-p.headY)*0.03;
+      if(now>tGaze && !focusing){ gT=[(Math.random()*2-1)*0.7,(Math.random()*2-1)*0.5]; tGaze=now+1400+Math.random()*3000; }
     }
+    if(idleOn || focusing){
+      const tgt = focusing ? focusT : gT, g = focusing ? 0.20 : 0.06;   // snap toward a focus, drift in idle
+      p.gazeX+=(tgt[0]-p.gazeX)*g; p.gazeY+=(tgt[1]-p.gazeY)*g;
+      p.headX+=(tgt[0]*0.35-p.headX)*(g*0.5); p.headY+=(tgt[1]*0.3-p.headY)*(g*0.5);
+    }
+    if(focusT && now>=focusUntil) focusT=null;                 // glance over -> idle wander resumes
     requestAnimationFrame(idleLoop);
   })(performance.now());
   function idle(on){ idleOn=on; if(!on) tBlink=0; }
+  // glance at a direction in gaze units (-1..1) and hold `hold` ms before the idle wander takes over again
+  function lookAt(gx,gy,hold=700){ focusT=[clamp(gx,-1,1),clamp(gy,-1,1)]; focusUntil=performance.now()+hold; tGaze=focusUntil+200; }
 
-  return { p, cfg, flush, blink, wink, idle, pivots:{neck,feet,belly}, stop:()=>cancelAnimationFrame(raf) };
+  return { p, cfg, flush, blink, wink, idle, lookAt, headC, pivots:{neck,feet,belly}, stop:()=>cancelAnimationFrame(raf) };
 }
 if(typeof module!=='undefined') module.exports={createRig};

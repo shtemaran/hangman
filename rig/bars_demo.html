@@ -36,6 +36,12 @@ Promise.all([
   const rig=createRig(svg,targets); rig.idle(true);
   const [VX,VY,VW,VH]=svg.getAttribute('viewBox').split(' ').map(Number), M=40;
 
+  // glance toward a dropping bar: head centre in viewBox coords (rig.headC is win-local + the #win transform)
+  const wm=/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)/.exec(svg.querySelector('#win').getAttribute('transform')||'');
+  const winT=wm?[+wm[1],+wm[2]]:[0,0], headCvb=[rig.headC[0]+winT[0], rig.headC[1]+winT[1]];
+  const glanceAt=b=>{ const cx=b.bb.x+b.bb.width/2, cy=b.bb.y+b.bb.height/2;
+    rig.lookAt((cx-headCvb[0])/(VW*0.30), (cy-headCvb[1])/(VH*0.30), 800); };   // look, hold ~0.8s, then idle resumes
+
   // clone each cage bar into its own group; k: 1 = fully off-frame, 0 = at rest, 0.5 = half in
   const src=svg.querySelector('#lose-bars');
   const cage=document.createElementNS(NS,'g'); cage.id='cage'; svg.appendChild(cage);
@@ -84,11 +90,14 @@ Promise.all([
     exprTarget=1-(step/TOTAL)*2; if(exprRaf==null) exprRaf=requestAnimationFrame(exprLoop); }
 
   function setStep(n, animate, stagger=0){
-    step=clamp(Math.round(n),0,TOTAL); let k=0;
+    step=clamp(Math.round(n),0,TOTAL); let k=0, dropped=null;
     for(const b of order){ const t=kAt(b.i,step);
-      if(t===b.goal) continue; b.goal=t;
+      if(t===b.goal) continue;
+      if(t<b.goal) dropped=b;                                   // a bar coming in -> glance at it
+      b.goal=t;
       if(animate){ go(b,t,k*stagger); k++; } else { b.k=t; place(b); }
     }
+    if(animate && dropped) glanceAt(dropped);
     refresh();
   }
   setStep(0,false);
