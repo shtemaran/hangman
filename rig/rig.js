@@ -45,7 +45,7 @@ function createRig(svg, T){
   // this emotion's shape),  0 = SHARE it (add this emotion's displacement over the base). So surprise can
   // grab the mouth & eyes (unique to it) while the brows stay shared with the expression. New emotions =
   // a new OVERLAYS row + a cfg.grab row.  g=1 -> lerp(base,E,L); g=0 -> base + L*(E-neutral).
-  const OVERLAYS=[ {name:'surprise', key:'surprised'} ];
+  const OVERLAYS=[ {name:'surprise', key:'surprised'}, {name:'thoughtful', key:'thoughtful'} ];
   const partOf=slot=> slot==='mouth'?'mouth' : slot[0]==='e'?'eye':'brow';
   const emo=(slot,e,lv)=>{
     let P=valence(slot,e); const t=T[slot], neu=t.neutral, part=partOf(slot);
@@ -88,13 +88,14 @@ function createRig(svg, T){
   const cfg={ headX:22, headY:16, headTilt:7, gazeYaw:38, gazePitch:26,
               constrainEye:0, constrainMouth:1,      // 0=free swing to edge, 1=sphere-constrained
               browDrop:3, breathScale:0.02, torsoExpand:0.14, breathBob:3, lean:6,
-              grab:{ surprise:{ mouth:1, eye:1, brow:0 } } };   // emotion x part grab matrix (see emo())
+              grab:{ surprise:{ mouth:1, eye:1, brow:0 },
+                     thoughtful:{ mouth:1, eye:0.5, brow:1 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
-    const e=clamp(p.expr,-1,1), lv={surprise:clamp(p.surprise,0,1)};
+    const e=clamp(p.expr,-1,1), lv={surprise:clamp(p.surprise,0,1), thoughtful:clamp(p.thoughtful,0,1)};
     setEye('l', e, lv, 1-clamp(p.eyeOpenL,0,1));
     setEye('r', e, lv, 1-clamp(p.eyeOpenR,0,1));
     setMouth(e,lv); setBrow('l',e,lv); setBrow('r',e,lv);
