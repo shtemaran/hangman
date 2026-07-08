@@ -22,9 +22,10 @@
 <script src="./rig.js"></script>
 <script>
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const backOut=(t,s=1.3)=>{const c3=s+1; return 1+c3*Math.pow(t-1,3)+s*Math.pow(t-1,2);}; // gentle overshoot (settle bounce)
-const easeIn=t=>t*t*t;                                                                    // accelerate away, no bounce
-const DUR_IN=820, DUR_OUT=420;
+const easeIn=t=>t*t*t;                                                                    // removal accelerates away
+// drop-in: enters already moving fast (v0), accelerates under "gravity", then HARD-STOPS on impact — no ease-out, no bounce
+const V0=0.6, drop=t=>V0*t+(1-V0)*t*t;
+const DUR_IN=190, DUR_OUT=320;   // fast, sudden drop
 
 Promise.all([
   fetch('../assets/marduk_semantic.svg').then(r=>r.text()),
@@ -65,12 +66,14 @@ Promise.all([
   function loop(now){
     for(const [b,a] of anims){ const p=(now-a.t0)/a.dur; if(p<0) continue;
       if(p>=1){ b.k=a.to; place(b); anims.delete(b); continue; }
-      const e = a.to<a.from ? backOut(p) : easeIn(p);               // coming in bounces, going out accelerates
+      const e = a.to<a.from ? drop(p) : easeIn(p);                  // drop-in slams (gravity + hard stop), removal accelerates out
       b.k = a.from+(a.to-a.from)*e; place(b);
     }
     raf = anims.size ? requestAnimationFrame(loop) : null;
   }
-  const go=(b,to,delay=0)=>{ anims.set(b,{t0:performance.now()+delay,from:b.k,to,dur:to<b.k?DUR_IN:DUR_OUT}); if(raf==null) raf=requestAnimationFrame(loop); };
+  // gravity feel: a shorter fall (half-step) takes proportionally less time (dur ~ sqrt of distance)
+  const go=(b,to,delay=0)=>{ const inn=to<b.k, dur=(inn?DUR_IN:DUR_OUT)*Math.sqrt(Math.max(Math.abs(to-b.k),0.25));
+    anims.set(b,{t0:performance.now()+delay,from:b.k,to,dur}); if(raf==null) raf=requestAnimationFrame(loop); };
 
   // expression follows the cage: step 0 = happy (+1) ... step 14 = sad (-1)
   let step=0, exprTarget=1, exprRaf=null;
