@@ -118,7 +118,7 @@ function createRig(svg, T, mods){
                      thoughtful:{ mouth:1, eye:0.5, brow:1 },
                      confused:{ mouth:1, eye:0.5, brow:1 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, horse:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
@@ -154,7 +154,7 @@ function createRig(svg, T, mods){
     for(const n in arms) arms[n].style.display=(p.hands===n)?'':'none';   // hand pose swap
     for(const mn in MODADD){ const L=clamp(p[mn]||0,0,1);  // raw level: each add gaze-reprojects + zooms in from nothing (staggered, after the morph)
       for(const it of MODADD[mn]){
-        it.rg.setAttribute('transform', it.gaze==='none' ? '' : sphere(it.c[0], it.c[1], 0, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));  // none = ride the head (e.g. crown)
+        it.rg.setAttribute('transform', (it.gaze==='none'||it.gaze==='tube') ? '' : sphere(it.c[0], it.c[1], 0, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));  // none/tube = ride the head (tube = TODO 3D reproject)
         const z=smooth01((L-it.a)/ZOOM_SPAN);                  // grow from a point (at zc) to full
         it.zg.setAttribute('transform',`translate(${it.zc[0]} ${it.zc[1]}) scale(${z.toFixed(4)}) translate(${-it.zc[0]} ${-it.zc[1]})`); } }
   }

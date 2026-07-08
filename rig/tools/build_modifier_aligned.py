@@ -29,6 +29,10 @@ CONFIG={
                  'crown':'none','crown-jewels':'none','crown-pearls':'none',    # crown rides the head (no gaze reproject)
                  'crown-background-left':'none','crown-background-right':'none',
                  'l-mustache':'mouth','r-mustache':'mouth'}},
+ 'horse':{'versions':{},                                                        # eyes/brows/mouth stay generic; the horse mouth rides the snout as an add
+          'adds':{'l-ear':'none','r-ear':'none','forelock':'none','hair':'none',  # ride the head
+                  'snout-trunk':'tube','snout-front':'tube','l-nostril':'tube',    # the protruding muzzle -> 3D-tube gaze (placeholder for now)
+                  'r-nostril':'tube','mouth':'tube'}},
 }
 cfg=CONFIG[MOD]
 
