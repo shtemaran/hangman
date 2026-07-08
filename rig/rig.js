@@ -8,11 +8,13 @@
 //   rig.p.eyeOpenL = 0;     // blink/wink (per eye), composes with expr
 //   rig.blink(); rig.wink('l'); rig.idle(true);
 
-function createRig(svg, T){
+function createRig(svg, T, mods){
   const NS='http://www.w3.org/2000/svg';
   const $=id=>svg.querySelector('#'+id);
   const mkG=id=>{const g=document.createElementNS(NS,'g'); g.id=id; return g;};
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const MODS=mods||{};                                     // modifiers.json: {name:{placement,adds,versions}}
+  const exprKey=e=> e>=0.5?'happy' : e<=-0.5?'sad' : 'neutral';
 
   $('lose').style.display='none'; $('win').style.display='';
   const rootG=$('win');
@@ -53,11 +55,28 @@ function createRig(svg, T){
       const g=(cfg.grab[ov.name]||{})[part], gg=(g==null?0:g);
       P=P.map((p,i)=>[ p[0]+L*(gg*(E[i][0]-p[0])+(1-gg)*(E[i][0]-neu[i][0])),
                        p[1]+L*(gg*(E[i][1]-p[1])+(1-gg)*(E[i][1]-neu[i][1])) ]); }
+    // modifier morph: blend toward the modifier's per-expression version (exact key, else any available)
+    for(const mn in MODS){ const L=clamp(lv[mn]||0,0,1), V=MODS[mn].versions&&MODS[mn].versions[slot]; if(L<=0||!V) continue;
+      const Wv=V[exprKey(e)]||V[Object.keys(V)[0]]; if(!Wv) continue;
+      P=P.map((p,i)=>[ p[0]+L*(Wv[i][0]-p[0]), p[1]+L*(Wv[i][1]-p[1]) ]); }
     return P; };
   const setEye=(s,e,lv,openW)=>{ let P=emo('eye-'+s,e,lv); if(openW>0)P=lerpA(P,T['eye-'+s].shut,openW); eyeP[s].setAttribute('d',pathD(P)); };
   const setMouth=(e,lv)=>mouthP.setAttribute('d',pathD(emo('mouth',e,lv)));
   const setBrow=(s,e,lv)=>browP[s].setAttribute('d',pathD(emo('brow-'+s,e,lv)));
   setBrow('l',1,{}); setBrow('r',1,{}); setEye('l',1,{},0); setEye('r',1,{},0); setMouth(1,{});
+
+  // ---- modifier "adds": extra features drawn on the face (placed via head-aligned transform),
+  //      each zooming in from nothing as the modifier level rises (staggered, so they pop in one by one).
+  const smooth01=u=>{u=clamp(u,0,1); return u*u*(3-2*u);};
+  const MODADD={};   // name -> [{zg, c:[x,y], a:staggerStart}]
+  for(const mn in MODS){ const m=MODS[mn]; if(!m.adds) continue;
+    const g=mkG('rig-mod-'+mn); g.setAttribute('transform', m.placement||''); head.appendChild(g);
+    const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
+      const zg=document.createElementNS(NS,'g'), pth=document.createElementNS(NS,'path');
+      pth.setAttribute('fill','#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); g.appendChild(zg);
+      return {zg, c:a.c, a:(labels.length>1? i/(labels.length-1)*0.5 : 0)}; });   // stagger starts over [0,0.5]
+  }
+  const ZOOM_SPAN=0.5;
 
   // ---- pivots from geometry ----
   const bb=el=>el.getBBox();
@@ -92,11 +111,12 @@ function createRig(svg, T){
                      thoughtful:{ mouth:1, eye:0.5, brow:1 },
                      confused:{ mouth:1, eye:0.5, brow:1 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
     const e=clamp(p.expr,-1,1), lv={surprise:clamp(p.surprise,0,1), thoughtful:clamp(p.thoughtful,0,1), confused:clamp(p.confused,0,1)};
+    for(const mn in MODS) lv[mn]=clamp(p[mn]||0,0,1);      // modifier morph levels (also drive their add zooms below)
     setEye('l', e, lv, 1-clamp(p.eyeOpenL,0,1));
     setEye('r', e, lv, 1-clamp(p.eyeOpenR,0,1));
     setMouth(e,lv); setBrow('l',e,lv); setBrow('r',e,lv);
@@ -125,6 +145,9 @@ function createRig(svg, T){
     const tsx=1+(p.breath-0.5)*cfg.torsoExpand;          // torso: expand horizontally with the inhale
     $('win-torso')&&X($('win-torso'), `translate(${torsoC[0]} ${torsoC[1]}) scale(${tsx} 1) translate(${-torsoC[0]} ${-torsoC[1]})`);
     for(const n in arms) arms[n].style.display=(p.hands===n)?'':'none';   // hand pose swap
+    for(const mn in MODADD){ const L=lv[mn];               // each add zooms in from nothing, staggered
+      for(const it of MODADD[mn]){ const z=smooth01((L-it.a)/ZOOM_SPAN);
+        it.zg.setAttribute('transform',`translate(${it.c[0]} ${it.c[1]}) scale(${z.toFixed(4)}) translate(${-it.c[0]} ${-it.c[1]})`); } }
   }
   let raf=requestAnimationFrame(function loop(){flush(); raf=requestAnimationFrame(loop);});
 
