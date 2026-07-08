@@ -74,10 +74,13 @@ function createRig(svg, T, mods){
   const MODADD={};   // name -> [{rg,zg, c:[x,y], gaze, a:staggerStart}]  (adds are in win-local face coords)
   for(const mn in MODS){ const m=MODS[mn]; if(!m.adds) continue;
     const g=mkG('rig-mod-'+mn); head.appendChild(g);
+    let mouthC=null;                                          // clown mouth centre — the lipstick grows from a point here
+    if(m.versions&&m.versions.mouth){ const v=Object.values(m.versions.mouth)[0];
+      mouthC=[v.reduce((s,p)=>s+p[0],0)/v.length, v.reduce((s,p)=>s+p[1],0)/v.length]; }
     const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
       const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g'), pth=document.createElementNS(NS,'path');
       pth.setAttribute('fill','#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); rg.appendChild(zg); g.appendChild(rg);
-      return {rg, zg, c:a.c, gaze:a.gaze||'eye',
+      return {rg, zg, c:a.c, zc:(lb==='lipstick'&&mouthC)?mouthC:a.c, gaze:a.gaze||'eye',   // zc = zoom pivot (lipstick grows from the mouth centre)
               a: lb==='lipstick' ? MOUTH_MORPH_END : (labels.length>1? i/(labels.length-1)*0.5 : 0) }; });   // lipstick waits for the mouth morph
   }
 
@@ -151,8 +154,8 @@ function createRig(svg, T, mods){
     for(const mn in MODADD){ const L=clamp(p[mn]||0,0,1);  // raw level: each add gaze-reprojects + zooms in from nothing (staggered, after the morph)
       for(const it of MODADD[mn]){
         it.rg.setAttribute('transform', sphere(it.c[0], it.c[1], 0, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));
-        const z=smooth01((L-it.a)/ZOOM_SPAN);
-        it.zg.setAttribute('transform',`translate(${it.c[0]} ${it.c[1]}) scale(${z.toFixed(4)}) translate(${-it.c[0]} ${-it.c[1]})`); } }
+        const z=smooth01((L-it.a)/ZOOM_SPAN);                  // grow from a point (at zc) to full
+        it.zg.setAttribute('transform',`translate(${it.zc[0]} ${it.zc[1]}) scale(${z.toFixed(4)}) translate(${-it.zc[0]} ${-it.zc[1]})`); } }
   }
   let raf=requestAnimationFrame(function loop(){flush(); raf=requestAnimationFrame(loop);});
 
