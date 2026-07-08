@@ -38,7 +38,8 @@ const PARAMS=[ // key, min, max, default
 const RANGES=[ // cfg key, min, max
   ['headX',0,60],['headY',0,60],['headTilt',0,20],['gazeYaw',0,70],['gazePitch',0,50],
   ['constrainEye',0,1],['constrainMouth',0,1],
-  ['browDrop',0,12],['breathScale',0,.08],['torsoExpand',0,.4],['breathBob',0,12],['lean',0,20] ];
+  ['browDrop',0,12],['breathScale',0,.08],['torsoExpand',0,.4],['breathBob',0,12],['lean',0,20],
+  ['suMouth',0,1.5],['suEye',0,1.5],['suBrow',0,1.5] ];
 
 Promise.all([
   fetch('../assets/marduk_semantic.svg').then(r=>r.text()),
