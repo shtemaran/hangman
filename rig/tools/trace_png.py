@@ -15,7 +15,8 @@ from skimage import measure
 from skimage.filters import threshold_otsu
 SRC=sys.argv[1] if len(sys.argv)>1 else 'generated/confused.png'
 OUT=sys.argv[2] if len(sys.argv)>2 else 'generated/confused.svg'
-TARGET_LAYERS=['head','l-brow','r-brow','l-eye','r-eye','mouth']
+# empty layers to pre-create; pass a custom comma-separated set as argv[3] (e.g. modifiers add nose/cheeks)
+TARGET_LAYERS=sys.argv[3].split(',') if len(sys.argv)>3 else ['head','l-brow','r-brow','l-eye','r-eye','mouth']
 A=np.array(Image.open(SRC).convert('L')); H,W=A.shape
 mask=ndimage.binary_closing(A<threshold_otsu(A),iterations=1)      # knit small brush gaps
 lab,n=ndimage.label(mask,structure=np.ones((3,3)))
