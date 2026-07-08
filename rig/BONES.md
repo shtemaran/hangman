@@ -149,6 +149,14 @@ for the rigid parenting between them.
 
 ## Driving it from the main rig
 
+> **Status (on hold).** The main-rig integration below was prototyped and then
+> **reverted** — `rig.js` currently shows both original arms hanging (the
+> `neutral` pose-swap), unchanged from before this work. The spline-bone system,
+> demos, and the dissolve prototype (`brush_taper_demo.html`) are kept as
+> research; the notes below record how the integration worked so it can be
+> redone. The hand-occlusion direction we'll return to is the **dissolve filter**
+> (see [below](#hand-occlusion--dissolve-filter-research)), not the cuff.
+
 `rig.js` hosts the arm on the character. `createRig(svg, faceTargets, hand)` takes
 `hand = { arm, fingers }` (the `arm_bend.json` / `finger_bend.json` payloads);
 load `bones.js` before `rig.js` so the global `Bones` is present, or the arm
@@ -165,7 +173,10 @@ rig tuner. Channels: `p.armShoulder` (−1..1, default −0.3 so it rests hangin
 envelope them back to rest. The bone `d`s are recomputed in `flush()` only when a
 channel actually changed.
 
-### Brush cuff (hand occlusion)
+### Brush cuff (hand occlusion) — *superseded*
+
+*(First attempt, kept for reference. Superseded by the dissolve filter below,
+which reads as a real drying brush rather than a hard geometric taper.)*
 
 When the arm hangs, showing a detailed five-finger hand looks wrong next to the
 loose brush-stroke right arm — that stroke just *tapers to nothing*. So instead of
@@ -179,3 +190,25 @@ shoulder lifts the cuff retracts and the hand emerges. The fingers also bunch
 (`cfg.tuckCurl`) as they tuck, so the taper stays clean. All of `cuffLen /
 cuffWidth / cuffLo / cuffHi / tuckCurl` are tunable in the rig tuner. Being solid
 ink that narrows geometrically, it reads as a brush stroke ending, not a fade.
+
+### Hand occlusion — dissolve filter (research)
+
+The direction we'll return to. Prototype: **`brush_taper_demo.html`** (serve over
+HTTP; it needs the JSON payloads). Instead of an ink cuff, a **spatial dissolve
+filter** thins the actual strokes to nothing like a drying brush:
+
+1. a **ramp** (linear-gradient mask across a boundary) modulates the stroke — the
+   control field, not the output;
+2. **blur** the alpha → soft edge;
+3. **add turbulence noise** (composited in), then
+4. **hard-threshold** back to opaque ink.
+
+Near the boundary the stroke thins and breaks into dry-brush flecks; past it, it's
+gone. The threshold keeps the output opaque ink, so it is *not* an opacity fade.
+
+**Performance:** `feTurbulence` recomputes Perlin noise on every repaint and pegs
+the CPU. Bake the noise **once** to a canvas and feed it via `feImage` instead;
+regenerate only when the noise scale/seed change. Boundary/blur/threshold stay as
+cheap live attribute tweaks. To integrate: bake the noise at rig init, scope the
+filter to the hand (off when the arm is raised), and drive the boundary from
+`armShoulder`.
