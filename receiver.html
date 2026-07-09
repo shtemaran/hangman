@@ -71,7 +71,7 @@
 
     .main { flex: 1 1 auto; display: flex; align-items: center; gap: 4vw; min-height: 0; }
     .gallows { flex: 0 0 30%; display: flex; align-items: center; justify-content: center; }
-    .gallows img { max-height: 46vh; max-width: 100%; }
+    .gallows svg { width: 100%; height: 100%; }
 
     .play { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4vh; min-width: 0; }
     #clue { font-size: 4.4vh; text-align: center; line-height: 1.25; }
@@ -154,7 +154,7 @@
   <section id="board">
     <div class="top"><div id="score">Հաշիվ: 0</div></div>
     <div class="main">
-      <div class="gallows"><img id="personImg" src="assets/sm_14.png" alt=""></div>
+      <div class="gallows" id="tv-person"></div>
       <div class="play">
         <div id="clue"></div>
         <div id="slots"></div>
@@ -164,6 +164,9 @@
   </section>
 
   <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  <script src="rig/rig.js"></script>
+  <script src="rig/cage.js"></script>
+  <script src="rig/character.js"></script>
   <script>
     // Must match CAST_NAMESPACE in app.js (the sender).
     const CAST_NAMESPACE = 'urn:x-cast:com.shtemaran.hangman';
@@ -178,7 +181,7 @@
     ];
 
     const scoreEl = document.getElementById('score');
-    const personImg = document.getElementById('personImg');
+    const character = createCharacter(document.getElementById('tv-person'));
     const clueEl = document.getElementById('clue');
     const slotsEl = document.getElementById('slots');
     const keyboardEl = document.getElementById('keyboard');
@@ -214,12 +217,6 @@
       if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
     });
 
-    function clampLives(n) {
-      n = Number(n);
-      if (!Number.isFinite(n)) return 14;
-      return Math.max(0, Math.min(14, n));
-    }
-
     function renderSlots(snapshot) {
       const cls = snapshot.phase === 'solved' ? ' correct'
         : snapshot.phase === 'dead' ? ' wrong' : '';
@@ -252,16 +249,18 @@
     }
 
     function render(snapshot) {
-      if (!snapshot || snapshot.phase === 'idle') {
-        document.body.dataset.phase = 'idle';
-        return;
+      if (!snapshot) { document.body.dataset.phase = 'idle'; return; }
+      const phase = snapshot.phase || 'idle';
+      document.body.dataset.phase = phase;
+      if (phase !== 'idle') {
+        scoreEl.textContent = 'Հաշիվ: ' + (snapshot.score || 0);
+        clueEl.textContent = snapshot.clue || '';
+        renderSlots(snapshot);
+        renderKeys(snapshot.used || [], snapshot.wrong || [], snapshot.free || []);
       }
-      document.body.dataset.phase = snapshot.phase;
-      scoreEl.textContent = 'Հաշիվ: ' + (snapshot.score || 0);
-      personImg.src = 'assets/sm_' + clampLives(snapshot.lives) + '.png';
-      clueEl.textContent = snapshot.clue || '';
-      renderSlots(snapshot);
-      renderKeys(snapshot.used || [], snapshot.wrong || [], snapshot.free || []);
+      // Same controller as the phone, fed the same snapshot: mounts + steps the
+      // cage when the board is visible, pauses on idle.
+      character.onState(snapshot);
     }
 
     const context = cast.framework.CastReceiverContext.getInstance();

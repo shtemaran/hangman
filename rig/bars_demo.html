@@ -1,0 +1,126 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Marduk — cage bars (14 steps)</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:1.2rem;display:flex;flex-direction:column;gap:.8rem;align-items:flex-start}
+  #stage{width:440px;height:380px;border:1px solid #ddd}
+  #stage svg{width:100%;height:100%}
+  .row{display:flex;gap:.7rem;align-items:center;font-size:14px}
+  input[type=range]{width:260px}
+</style>
+<h3>Marduk cage — 14 game steps over 8 bars (2 drop full, 6 drop in two halves)</h3>
+<div id="stage">loading…</div>
+<div class="row">
+  <button id="minus">− step</button><button id="plus">+ step</button>
+  <input id="scrub" type="range" min="0" max="14" step="1" value="0">
+  <span id="count">step 0 / 14</span>
+</div>
+<div class="row">
+  <button id="cage">Cage all</button><button id="uncage">Break free</button>
+  <label><input type="checkbox" id="idle" checked> idle</label>
+</div>
+<script src="./rig.js"></script>
+<script>
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const easeIn=t=>t*t*t;                                                                    // removal accelerates away
+// drop-in: enters already moving fast (v0), accelerates under "gravity", then HARD-STOPS on impact — no ease-out, no bounce
+const V0=0.6, drop=t=>V0*t+(1-V0)*t*t;
+const DUR_IN=190, DUR_OUT=320;   // fast, sudden drop
+
+Promise.all([
+  fetch('../assets/marduk_semantic.svg').then(r=>r.text()),
+  fetch('./face_targets.json').then(r=>r.json())
+]).then(([svgText,targets])=>{
+  document.getElementById('stage').innerHTML=svgText;
+  const svg=document.querySelector('#stage svg'), NS='http://www.w3.org/2000/svg';
+  const rig=createRig(svg,targets); rig.idle(true);
+  const [VX,VY,VW,VH]=svg.getAttribute('viewBox').split(' ').map(Number), M=40;
+
+  // glance toward a dropping bar: head centre in viewBox coords (rig.headC is win-local + the #win transform)
+  const wm=/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)/.exec(svg.querySelector('#win').getAttribute('transform')||'');
+  const winT=wm?[+wm[1],+wm[2]]:[0,0], headCvb=[rig.headC[0]+winT[0], rig.headC[1]+winT[1]];
+  const glanceAt=b=>{ const cx=b.bb.x+b.bb.width/2, cy=b.bb.y+b.bb.height/2;
+    rig.lookAt((cx-headCvb[0])/(VW*0.30), (cy-headCvb[1])/(VH*0.30), 800); };   // look, hold ~0.8s, then idle resumes
+
+  // clone each cage bar into its own group; k: 1 = fully off-frame, 0 = at rest, 0.5 = half in
+  const src=svg.querySelector('#lose-bars');
+  const cage=document.createElementNS(NS,'g'); cage.id='cage-bars'; svg.appendChild(cage);   // id must not clash with the <button id="cage">
+
+  const bars=[...src.querySelectorAll('path,polygon')].map(el=>{
+    const g=document.createElementNS(NS,'g'); g.appendChild(el.cloneNode(true)); cage.appendChild(g);
+    const bb=g.getBBox(); return {g,bb,vert:bb.height>bb.width,k:1,goal:1};
+  });
+  const V=bars.filter(b=>b.vert).sort((a,b)=>a.bb.x-b.bb.x);
+  const H=bars.filter(b=>!b.vert).sort((a,b)=>a.bb.y-b.bb.y);
+  V.forEach(b=>{ b.sx=0; b.sy=-(b.bb.y+b.bb.height - VY + M); });      // drop from above (clears top)
+  const dir=[-1,1,1,-1];                                              // H bars slide off L,R,R,L top->bottom
+  H.forEach((b,i)=>{ const d=dir[i%4]; b.sy=0;
+    b.sx = d>0 ? (VX+VW - b.bb.x + M) : -(b.bb.x+b.bb.width - VX + M); });
+  const order=[...V,...H]; order.forEach((b,i)=>b.i=i);               // drop sequence
+  const N=order.length, TOTAL=2+(N-2)*2;                             // 8 bars -> 14 steps
+  const place=b=>b.g.setAttribute('transform',`translate(${b.sx*b.k} ${b.sy*b.k})`);
+  bars.forEach(place);
+
+  // step -> per-bar target k. First 2 bars drop fully (1 step each); the rest drop in two halves.
+  function kAt(i, step){
+    if(i<2) return step>=(i+1) ? 0 : 1;
+    const half=3+(i-2)*2, full=half+1;                              // bar i: half at `half`, full at `full`
+    return step>=full ? 0 : step>=half ? 0.5 : 1;
+  }
+
+  // per-bar tween from current k to a target k
+  const anims=new Map(); let raf=null;
+  function loop(){
+    const now=performance.now();                                   // same clock as go()'s t0
+    for(const [b,a] of anims){ const p=(now-a.t0)/a.dur; if(p<0) continue;
+      if(p>=1){ b.k=a.to; place(b); anims.delete(b); continue; }
+      const e = a.to<a.from ? drop(p) : easeIn(p);                  // drop-in slams (gravity + hard stop), removal accelerates out
+      b.k = a.from+(a.to-a.from)*e; place(b);
+    }
+    raf = anims.size ? requestAnimationFrame(loop) : null;
+  }
+  // gravity feel: a shorter fall (half-step) takes proportionally less time (dur ~ sqrt of distance)
+  const go=(b,to,delay=0)=>{ const inn=to<b.k, dur=(inn?DUR_IN:DUR_OUT)*Math.sqrt(Math.max(Math.abs(to-b.k),0.25));
+    anims.set(b,{t0:performance.now()+delay,from:b.k,to,dur}); if(raf==null) raf=requestAnimationFrame(loop); };
+
+  // expression follows the cage: step 0 = happy (+1) ... step 14 = sad (-1). On each change it snaps to the
+  // full reaction, then "eases off" a few % back toward neutral (not all the way) over a randomized ~1.5-3 s.
+  let step=0, exprRaf=null, reactT=1, relaxT=1, relaxStart=0, relaxEnd=0;
+  function setExpr(){
+    const np=1-(step/TOTAL)*2;                             // nominal expression for this step = the full reaction
+    reactT=np; relaxT=np*(1-(0.05+Math.random()*0.05));    // settle 5-10% back toward neutral, not all the way
+    const now=performance.now();
+    relaxStart=now+400;                                    // hold the reaction a beat, then relax
+    relaxEnd=relaxStart+(1500+Math.random()*1500);         // over a randomized couple of seconds
+    if(exprRaf==null) exprRaf=requestAnimationFrame(exprLoop);
+  }
+  function exprLoop(){
+    const now=performance.now(); let target=reactT;
+    if(now>=relaxStart){ const u=clamp((now-relaxStart)/(relaxEnd-relaxStart),0,1); target=reactT+(relaxT-reactT)*(u*u*(3-2*u)); }
+    rig.p.expr += (target-rig.p.expr)*0.12;
+    if(now<relaxEnd || Math.abs(target-rig.p.expr)>0.002) exprRaf=requestAnimationFrame(exprLoop); else { rig.p.expr=target; exprRaf=null; }
+  }
+  const cnt=document.getElementById('count'), scrub=document.getElementById('scrub');
+  function refresh(){ cnt.textContent=`step ${step} / ${TOTAL}`; scrub.value=step; setExpr(); }
+
+  function setStep(n, animate, stagger=0){
+    step=clamp(Math.round(n),0,TOTAL); let k=0, dropped=null;
+    for(const b of order){ const t=kAt(b.i,step);
+      if(t===b.goal) continue;
+      if(t<b.goal) dropped=b;                                   // a bar coming in -> glance at it
+      b.goal=t;
+      if(animate){ go(b,t,k*stagger); k++; } else { b.k=t; place(b); }
+    }
+    if(animate && dropped) glanceAt(dropped);
+    refresh();
+  }
+  setStep(0,false);
+
+  document.getElementById('plus').onclick =()=>setStep(step+1,true);
+  document.getElementById('minus').onclick=()=>setStep(step-1,true);
+  scrub.oninput=e=>setStep(+e.target.value,true);
+  document.getElementById('cage').onclick  =()=>setStep(TOTAL,true,110);
+  document.getElementById('uncage').onclick=()=>setStep(0,true,70);
+  document.getElementById('idle').onchange=e=>rig.idle(e.target.checked);
+});
+</script>

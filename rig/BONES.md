@@ -1,0 +1,214 @@
+# Spline-bone system
+
+A small deformation engine that bends a 2D shape along a curving skeleton. It
+drives the finger curl today and is meant to be reused for the arm. The runtime
+lives in **`bones.js`** (the source of truth) with a byte-for-byte Python mirror
+in **`tools/bones.py`** used by the build script. Data is baked into
+`finger_bend.json` by `tools/build_finger_bend.py`.
+
+## Why a bend, not a morph
+
+The first attempt tweened between an open finger and a closed finger (outline
+morph). At t=0.5 that gives a blend of two *different drawings*, not a
+half-curled finger — it clumps and folds through itself. A finger curl is not
+two shapes averaged; it is **one shape carried along a bending backbone**. So we
+keep the shape fixed and only bend the backbone. This is exactly what Inkscape's
+"Bend" Live Path Effect does, and we recreate its math (matched at IoU ≈ 0.99).
+
+## A "bone"
+
+```
+bone = { polys, rest, bent, xmn, xmx, ymid }
+```
+
+- `polys` — the shape as arrays of `[x,y]` points, in the bone's **local frame**
+  (the finger rotated horizontal, knuckle at the origin, pointing +x).
+- `rest` — the **straight** skeleton polyline: the shape at curl = 0.
+- `bent` — the **curled** skeleton polyline, *same point count* as `rest`: curl = 1.
+- `xmn,xmx` — the shape's extent **along** the bone. A point's x in `[xmn,xmx]`
+  maps to arc-length `0..L` on the skeleton.
+- `ymid` — the shape's centreline **across** the bone. A point's `y - ymid`
+  becomes a perpendicular offset from the skeleton.
+
+The caller places the whole deformed bone in the scene with its own
+`translate(K) rotate(deg)` (`K` = knuckle, `deg` = the finger's world angle).
+Deformation happens in the tidy local frame; placement is a plain transform.
+
+## The three steps (`deform(bone, t)`)
+
+1. **`interpSkel(rest, bent, t)`** — build the live skeleton at curl `t`.
+2. **`bendAlong(polys, skel, xmn, xmx, ymid)`** — carry every shape point onto
+   that skeleton: x → point along the curve, `y-ymid` → offset perpendicular to
+   the curve's tangent. Returns an SVG path `d`.
+3. The caller wraps the `d` in the bone's placement transform.
+
+`skelPath(rest, bent, t)` returns just the live skeleton polyline, for the
+red debug overlay in `finger_demo.html`.
+
+## Turning-angle interpolation (the crucial bit)
+
+How do you get the skeleton *between* straight and curled? Two obvious ways both
+fail:
+
+- **Position-lerp** each skeleton vertex `rest→bent`: the curve collapses through
+  its own straight chord on the way, so mid-curl the finger goes limp/flat.
+- **Absolute-angle lerp** each segment's heading: when the curled skeleton hooks
+  back on itself, one segment's absolute angle points "backwards"; lerping it
+  swings that segment through vertical and you get a spurious spike/extra bend
+  around t≈0.33.
+
+The fix is to interpolate **turning angles** (each joint's angle *relative to the
+previous segment*) and roll them up the chain:
+
+```
+h = aR[0] + t·norm(aB[0] − aR[0])          // first segment heading, rest→bent
+for each subsequent segment i:
+    h += t·norm(aB[i] − aB[i−1])           // add a fraction of that joint's final turn
+    place the next vertex a lerped length away at heading h
+```
+
+`norm` wraps to (−π, π] so we always take the short way round. Because each turn
+is added on top of the running heading, the chain curls up *progressively* from
+the knuckle out — no collapse, no backward spikes. `rest` and `bent` must share a
+point count so segments correspond 1:1.
+
+## How the data is built (`tools/build_finger_bend.py`)
+
+- Reads two artist SVGs from `generated/`: `hand-spread.svg` (open fingers + arm)
+  and `hand-spread-closed.svg` (two fingers bent with Inkscape's Bend LPE).
+- For each finger: PCA principal axis → knuckle `K` (end nearest the wrist marker)
+  and world angle `th`; rotate the finger into its local frame; record `xmn/xmx/ymid`.
+- `pointer` and `middle` carry the artist's real `bendpath` from the LPE → their
+  `bent` skeleton. `thumb/ring/pinky` reuse `pointer`'s curl as a **unit template**
+  scaled to each finger's length.
+- `thumb` is in `FLIP` — its `bent` is mirrored across the rest axis so it curls
+  the opposite way from the fingers.
+- Emits `finger_bend.json`: `{ viewBox, arm, fingers: { <label>: bone + K + deg } }`
+  and a validation sheet `traces/hand_bend_full.png` (curl at 0, .5, 1).
+
+To regenerate: `python tools/build_finger_bend.py` (needs the scratchpad venv:
+cairosvg, PIL, numpy, svgpathtools).
+
+## The arm (same engine, one joint)
+
+The arm reuses this unchanged — see `tools/build_arm_bend.py`, `arm_bend.json`,
+`arm_demo.html`. The arm brush stroke is one bone whose skeleton runs
+shoulder→elbow→wrist, **anchored at the shoulder** (the frame's origin `K` sits
+at the shoulder tip, farthest from the wrist marker — the opposite of the
+finger's knuckle rule). `rest` is the straight T-pose; `bent` rotates the forearm
+about the elbow, with the corner **rounded** by ramping the heading across a
+short span (`W`) via smoothstep so the arm's thickness doesn't pinch at the kink.
+
+`deform(bone, t)` with `t < 0` would mirror the bend across the arm axis (since
+`rest` is straight and `bent`'s lengths match), but once the hand is parented that
+direction bends the elbow the wrong way anatomically — so the elbow is clamped to
+**negative only** (`t ∈ [−1, 0]`). `PHI` (max angle) and `W` (rounding span) are
+the two knobs at the top of the builder; flip `PHI`'s sign to swap which way the
+single valid bend goes.
+
+## Parenting the hand to the arm
+
+`hand_arm_demo.html` hangs the whole hand off the arm's wrist end. The hand was
+authored in the same coordinate space as the arm (wrist marker at 105.5,69.5), so
+we don't re-place each finger — we wrap all five finger groups in one `<g>` and
+give it the **delta** transform that carries the arm's *rest* wrist-frame to its
+*bent* wrist-frame:
+
+```
+Bones.tipFrame(arm, t) -> { p, ang }          // tip position + tangent, LOCAL to the arm bone
+worldTip(t): apply the arm's translate(K)·rotate(deg) to that frame -> { O, a } in world
+hand transform = translate(O_t) · rotate(a_t − a_0) · translate(−O_0)
+```
+
+At `t=0` the delta is the identity, so the hand sits exactly where it was drawn;
+as the elbow moves, the hand rides the forearm end (position **and** orientation)
+as a rigid child. Finger curl still runs independently on each finger bone on top
+of that. `tipFrame` is the general hook for parenting any child to a bone's far
+end (mirrored in `tools/bones.py` as `tip_frame`).
+
+## The shoulder (pure pivot, no deformation)
+
+The whole arm floats, so the shoulder needs no bone at all — the arm bone is
+already anchored at the shoulder point (`arm.K`). The shoulder joint is just an
+outer group wrapping *both* the arm and the parented hand, rotated about that
+point:
+
+```
+<g transform="rotate(shoulderDeg, arm.K.x, arm.K.y)"> arm + hand </g>
+```
+
+Because the pivot is the arm's own anchor, the entire chain (arm, elbow bend, and
+hand) swings rigidly as one, and elbow + finger curl still compose underneath.
+Unlike the elbow, the shoulder is **bidirectional** (`−1..+1`, scaled by `SH_MAX`
+degrees). The demo frames a square centred on the shoulder sized to the arm's
+reach, since the arm sweeps a circle about the pivot.
+
+So the joint hierarchy is: **shoulder pivot → arm bone (elbow) → wrist frame →
+five finger bones (curl)** — one deforming bone per real joint, plain transforms
+for the rigid parenting between them.
+
+## Driving it from the main rig
+
+> **Status (on hold).** The main-rig integration below was prototyped and then
+> **reverted** — `rig.js` currently shows both original arms hanging (the
+> `neutral` pose-swap), unchanged from before this work. The spline-bone system,
+> demos, and the dissolve prototype (`brush_taper_demo.html`) are kept as
+> research; the notes below record how the integration worked so it can be
+> redone. The hand-occlusion direction we'll return to is the **dissolve filter**
+> (see [below](#hand-occlusion--dissolve-filter-research)), not the cuff.
+
+`rig.js` hosts the arm on the character. `createRig(svg, faceTargets, hand)` takes
+`hand = { arm, fingers }` (the `arm_bend.json` / `finger_bend.json` payloads);
+load `bones.js` before `rig.js` so the global `Bones` is present, or the arm
+block is skipped. It replaces the left arm (`win-hands-l`) with the rigged chain
+and leaves the original `win-hands-r` untouched.
+
+Placement maps the bone-space shoulder (`arm.K`) onto the body's left shoulder.
+The anchor is the hand-tuned **SHL ≈ (328.8, 359.2)** (Inkscape page `211,371` on
+648×562 → viewBox) *minus* the `#win` group's transform, since the arm lives
+inside `#win`: `cfg.armX/armY ≈ (339.45, 385.79)`. `cfg.armScale` (≈0.514, head-
+relative), `cfg.armAim` (rest angle) and `cfg.armShoulderMax` are tunable in the
+rig tuner. Channels: `p.armShoulder` (−1..1, default −0.3 so it rests hanging), `p.armElbow`
+(−1..0), `p.grip` (0..1); scripted gestures `rig.wave()` and `rig.fistpump()`
+envelope them back to rest. The bone `d`s are recomputed in `flush()` only when a
+channel actually changed.
+
+### Brush cuff (hand occlusion) — *superseded*
+
+*(First attempt, kept for reference. Superseded by the dissolve filter below,
+which reads as a real drying brush rather than a hard geometric taper.)*
+
+When the arm hangs, showing a detailed five-finger hand looks wrong next to the
+loose brush-stroke right arm — that stroke just *tapers to nothing*. So instead of
+opacity-fading the hand, a solid ink **cuff** continues the forearm past the wrist
+to a point and swallows the hand into one dissolving stroke. It's a tapering
+tongue polygon (unit template pointing +x, scaled `x`=length, `y`=width) drawn
+over the fingers inside the wrist frame, so it rides the hand. Its length is
+`cfg.cuffLen·(1 − reveal)` where `reveal = smoothstep(armShoulder, cfg.cuffLo,
+cfg.cuffHi)`: at rest length is full (hand hidden in the taper), and as the
+shoulder lifts the cuff retracts and the hand emerges. The fingers also bunch
+(`cfg.tuckCurl`) as they tuck, so the taper stays clean. All of `cuffLen /
+cuffWidth / cuffLo / cuffHi / tuckCurl` are tunable in the rig tuner. Being solid
+ink that narrows geometrically, it reads as a brush stroke ending, not a fade.
+
+### Hand occlusion — dissolve filter (research)
+
+The direction we'll return to. Prototype: **`brush_taper_demo.html`** (serve over
+HTTP; it needs the JSON payloads). Instead of an ink cuff, a **spatial dissolve
+filter** thins the actual strokes to nothing like a drying brush:
+
+1. a **ramp** (linear-gradient mask across a boundary) modulates the stroke — the
+   control field, not the output;
+2. **blur** the alpha → soft edge;
+3. **add turbulence noise** (composited in), then
+4. **hard-threshold** back to opaque ink.
+
+Near the boundary the stroke thins and breaks into dry-brush flecks; past it, it's
+gone. The threshold keeps the output opaque ink, so it is *not* an opacity fade.
+
+**Performance:** `feTurbulence` recomputes Perlin noise on every repaint and pegs
+the CPU. Bake the noise **once** to a canvas and feed it via `feImage` instead;
+regenerate only when the noise scale/seed change. Boundary/blur/threshold stay as
+cheap live attribute tweaks. To integrate: bake the noise at rig init, scope the
+filter to the hand (off when the arm is raised), and drive the boundary from
+`armShoulder`.

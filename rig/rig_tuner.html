@@ -1,0 +1,77 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Marduk rig tuner</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:1rem;display:flex;gap:1.3rem;align-items:flex-start;flex-wrap:wrap}
+  #stage{width:420px;height:362px;border:1px solid #ddd;flex:none}
+  #stage svg{width:100%;height:100%}
+  .panel{display:flex;flex-direction:column;gap:.35rem;font-size:13px;min-width:250px}
+  .panel h4{margin:.6rem 0 .1rem;border-bottom:1px solid #eee}
+  .ctl{display:grid;grid-template-columns:88px 1fr 42px;gap:.4rem;align-items:center}
+  .ctl output{text-align:right;color:#555}
+  .row{display:flex;gap:.4rem;flex-wrap:wrap}
+  button{font-size:12px;padding:.25rem .5rem}
+</style>
+<div id="stage">loading…</div>
+<div class="panel" id="params"><h4>Pose (params)</h4></div>
+<div class="panel" id="grab"><h4>Emotion grab (× part): 1 owns · 0 shares</h4></div>
+<div class="panel">
+  <h4>Actions</h4>
+  <div class="row">
+    <button id="blink">Blink</button><button id="winkl">Wink L</button><button id="winkr">Wink R</button>
+  </div>
+  <div class="row">hands:
+    <button data-hands="neutral">neutral</button><button data-hands="thumbsup">thumbs-up</button>
+  </div>
+  <label><input type="checkbox" id="idle"> idle (procedural life)</label>
+  <button id="reset">reset pose</button>
+  <div class="panel" id="ranges"><h4>Ranges (tune, then export)</h4></div>
+  <button id="export">export config JSON</button>
+  <pre id="out" style="font-size:11px;white-space:pre-wrap"></pre>
+</div>
+<script src="./rig.js"></script>
+<script>
+const PARAMS=[ // key, min, max, default
+  ['headX',-1,1,0],['headY',-1,1,0],['headTilt',-1,1,0],
+  ['gazeX',-1,1,0],['gazeY',-1,1,0],
+  ['eyeOpenL',0,1,1],['eyeOpenR',0,1,1],
+  ['expr',-1,1,1],['surprise',0,1,0],['thoughtful',0,1,0],['confused',0,1,0],['clown',0,1,0],['king',0,1,0],['nerd',0,1,0],['girl',0,1,0],['bodyLean',-1,1,0],['breath',0,1,.5] ];
+const RANGES=[ // cfg key, min, max
+  ['headX',0,60],['headY',0,60],['headTilt',0,20],['gazeYaw',0,70],['gazePitch',0,50],
+  ['constrainEye',0,1],['constrainMouth',0,1],
+  ['browDrop',0,12],['breathScale',0,.08],['torsoExpand',0,.4],['breathBob',0,12],['lean',0,20] ];
+
+Promise.all([
+  fetch('../assets/marduk_semantic.svg').then(r=>r.text()),
+  fetch('./face_targets.json').then(r=>r.json()),
+  fetch('./modifiers.json').then(r=>r.json()).catch(()=>({}))
+]).then(([svgText,targets,mods])=>{
+  document.getElementById('stage').innerHTML=svgText;
+  const svg=document.querySelector('#stage svg');
+  const rig=createRig(svg,targets,mods);
+  window.rig=rig;
+
+  function slider(host,label,min,max,val,step,on){
+    const row=document.createElement('div'); row.className='ctl';
+    row.innerHTML=`<span>${label}</span><input type=range min=${min} max=${max} step=${step} value=${val}><output>${(+val).toFixed(2)}</output>`;
+    const inp=row.querySelector('input'), out=row.querySelector('output');
+    inp.oninput=()=>{on(+inp.value); out.textContent=(+inp.value).toFixed(2);};
+    host.appendChild(row); return inp;
+  }
+  const pHost=document.getElementById('params'), pInputs={};
+  PARAMS.forEach(([k,mn,mx,dv])=> pInputs[k]=slider(pHost,k,mn,mx,dv,0.01,v=>rig.p[k]=v));
+  RANGES.forEach(([k,mn,mx])=> slider(document.getElementById('ranges'),k,mn,mx,rig.cfg[k],(mx-mn)/200,v=>rig.cfg[k]=v));
+  // emotion x part grab matrix — one slider per cell of rig.cfg.grab
+  const gHost=document.getElementById('grab');
+  for(const emo in rig.cfg.grab) for(const part in rig.cfg.grab[emo])
+    slider(gHost, `${emo}·${part}`, 0,1, rig.cfg.grab[emo][part], 0.05, v=>rig.cfg.grab[emo][part]=v);
+
+  document.getElementById('blink').onclick=()=>rig.blink();
+  document.getElementById('winkl').onclick=()=>rig.wink('l');
+  document.getElementById('winkr').onclick=()=>rig.wink('r');
+  document.querySelectorAll('[data-hands]').forEach(b=>b.onclick=()=>rig.p.hands=b.dataset.hands);
+  document.getElementById('idle').onchange=e=>rig.idle(e.target.checked);
+  document.getElementById('reset').onclick=()=>{PARAMS.forEach(([k,mn,mx,dv])=>{rig.p[k]=dv;pInputs[k].value=dv;pInputs[k].dispatchEvent(new Event('input'));});};
+  document.getElementById('export').onclick=()=>{document.getElementById('out').textContent=JSON.stringify(rig.cfg,null,1);};
+});
+</script>
