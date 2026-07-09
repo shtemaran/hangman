@@ -366,17 +366,12 @@ function renderSlots(extraClass = '') {
   }
 }
 
-function setPersonImage() {
-  document.getElementById('personImg').src = `assets/sm_${state.lives}.png`;
-}
-
 function nextWord() {
   state.lives = MAX_LIVES;
   state.locked = false;
   state.current = state.picker.pickNext(Date.now());
   state.slots = buildSlots(state.current.a);
   document.getElementById('clue').textContent = state.current.q;
-  setPersonImage();
   resetKeyboard();
   applyFreeLetters();
   renderSlots();
@@ -427,7 +422,6 @@ function onLetter(letter, btn) {
   if (!found) {
     btn.classList.add('wrong');
     state.lives--;
-    setPersonImage();
     if (state.lives <= 0) {
       state.locked = true;
       for (const slot of state.slots) slot.revealed = true;

@@ -1,4 +1,4 @@
-const CACHE = 'hangman-pwa-v25';
+const CACHE = 'hangman-pwa-v26';
 
 const ASSETS = [
   './',
@@ -6,26 +6,18 @@ const ASSETS = [
   'styles.css',
   'app.js',
   'picker.js',
+  'character.js',
   'manifest.webmanifest',
   'assets/words.json',
   'assets/arnamu.ttf',
   'assets/texture-tile.png',
   'assets/happymarduk.png',
   'assets/sm_0.png',
-  'assets/sm_1.png',
-  'assets/sm_2.png',
-  'assets/sm_3.png',
-  'assets/sm_4.png',
-  'assets/sm_5.png',
-  'assets/sm_6.png',
-  'assets/sm_7.png',
-  'assets/sm_8.png',
-  'assets/sm_9.png',
-  'assets/sm_10.png',
-  'assets/sm_11.png',
-  'assets/sm_12.png',
-  'assets/sm_13.png',
-  'assets/sm_14.png',
+  // Animation rig (in-game figure): replaces the sm_1..sm_14 stage PNGs.
+  'assets/marduk_semantic.svg',
+  'rig/rig.js',
+  'rig/cage.js',
+  'rig/face_targets.json',
   'icons/icon-192.png',
   'icons/icon-512.png',
 ];

@@ -178,10 +178,11 @@ body.cast-available #game .topbar { padding-right: 48px; }
   justify-content: center;
   padding: 4px;
 }
-#person img {
-  max-width: 80%;
-  max-height: 100%;
-  object-fit: contain;
+/* The animation rig inlines assets/marduk_semantic.svg here; it scales to fit
+   #person (preserveAspectRatio keeps it centered). */
+#person svg {
+  width: 100%;
+  height: 100%;
 }
 
 #clue {
