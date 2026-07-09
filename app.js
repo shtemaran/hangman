@@ -63,6 +63,15 @@ const CAST_NAMESPACE = 'urn:x-cast:com.shtemaran.hangman';
 let castContext = null;
 let lastSnapshot = null;
 
+// Observers of game state. Chromecast delivery is one; the on-screen character
+// (character.js) is another. One-way and read-only: an observer receives each
+// snapshot and must never call back into the game, so it can't affect play.
+const stateObservers = [];
+window.subscribeGameState = (fn) => {
+  stateObservers.push(fn);
+  if (lastSnapshot) fn(lastSnapshot);   // catch a late subscriber up
+};
+
 // The Cast SDK calls this global the moment the framework finishes loading.
 window['__onGCastApiAvailable'] = function (isAvailable) {
   if (isAvailable && CAST_APP_ID !== 'REPLACE_WITH_APP_ID') initCast();
@@ -140,6 +149,9 @@ function castDeliver(snapshot) {
 function castSend(phase) {
   lastSnapshot = castSnapshot(phase);
   castDeliver(lastSnapshot);
+  for (const fn of stateObservers) {
+    try { fn(lastSnapshot); } catch (e) { console.warn('state observer failed', e); }
+  }
 }
 
 // In Armenian, `ո` followed by `ւ` reads as the digraph `ու` and is shown in
