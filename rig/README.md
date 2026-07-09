@@ -1,38 +1,27 @@
 # Marduk rig workspace
 
-Scratch area for building an animation rig around `assets/marduk_semantic.svg`.
-Current focus: a **generate → trace → register** pipeline for adding new
-expression/pose states (eyes closed, wand poses, …) as morph targets.
+Animation rig around `assets/marduk_semantic.svg` — a JS runtime (`rig.js`) that
+drives the mascot's expression, gaze, breath, blink, scripted actions, and a
+data-driven **modifier** system (clown / king / nerd / girl …), plus the hangman
+**cage bars**. Limbs (fingers/arm) bend along spline bones.
 
-## Workflow
+## Docs
+- **[RIG.md](RIG.md)** — the rig: params, config, API, gaze model, the full
+  modifier system + build pipeline, the cage bars, and all the demos. **Start here.**
+- **[BONES.md](BONES.md)** — the spline-bone deformation engine (finger curl, arm).
 
-1. **Export base + mask** from the semantic layers:
-   ```
-   tools/export_mask.py --state win --slots eyes-l eyes-r --name eyes_closed
-   ```
-   → `out/<name>_base.png`, `out/<name>_mask.png`, `out/<name>_overlay.png`.
-   Mask convention: **white = region to inpaint, black = keep unchanged.**
-   Because only the masked region changes, whatever the model draws lands
-   already registered to the rig's coordinate space.
-
-2. **Generate** (external, any inpainting tool). Feed `_base.png` + `_mask.png`.
-   Keep the same black brush-ink / two-tone style. Save results into `generated/`.
-
-3. **Trace + register** (pipeline TBD): threshold → potrace → align to the
-   semantic frame → extract the changed region as a new blend target / slot.
-
-## Hand / finger rig — spline bones
-A separate track: bending fingers (and, next, the arm) along a curving skeleton.
-See **[BONES.md](BONES.md)** for the concept and math.
-- `bones.js` — deformation engine (source of truth); `tools/bones.py` — Python mirror
-- `tools/build_finger_bend.py` — bakes `finger_bend.json` from the `generated/` hand SVGs
-- `finger_demo.html` — interactive 5-finger curl demo (per-finger + "all" sliders)
+## Try it
+Open in a browser (served locally):
+- `rig_tuner.html` — tune every param / modifier live, export the config.
+- `bars_demo.html` — the cage closing in over 14 steps, character reacting.
+- `finger_demo.html`, `arm_demo.html`, `hand_arm_demo.html` — spline-bone limbs.
 
 ## Layout
-- `tools/`     scripts (export_mask.py, bones.py, build_finger_bend.py, tracer — TBD)
-- `out/`       exported base+mask pairs
-- `generated/` AI outputs dropped here for tracing
-- `traces/`    vectorized results
+- `rig.js` — the runtime rig (source of truth) · `bones.js` — spline-bone engine
+- `face_targets.json`, `modifiers.json`, `*_bend.json` — baked data
+- `tools/` — trace / align / build scripts (see RIG.md → *Building a modifier*)
+- `generated/` — source ink images + traced/aligned SVGs · `out/`, `traces/` — scratch
 
 ## Deps
-`cairosvg pillow numpy scipy` (+ `potrace` for tracing, TBD).
+`cairosvg pillow numpy scipy scikit-image` for the build tools; headless
+`chromium` for `tools/svg_query.py` and static renders.
