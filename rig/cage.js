@@ -36,6 +36,18 @@ function createCage(svg, rig, opts) {
   // 0.5 = half in. (id must not clash with any `#cage` element elsewhere.)
   const src = svg.querySelector('#lose-bars');
   const cageG = document.createElementNS(NS, 'g'); cageG.id = 'cage-bars'; svg.appendChild(cageG);
+
+  // Clip the bars to the viewBox. SVG doesn't clip to its viewBox by default, so
+  // on a wide screen (letterboxed) an off-frame bar would otherwise show in the
+  // side margins. Clipping hides bars until they slide into frame.
+  const defs = svg.querySelector('defs') ||
+    svg.insertBefore(document.createElementNS(NS, 'defs'), svg.firstChild);
+  const clip = document.createElementNS(NS, 'clipPath'); clip.id = 'cage-clip';
+  const cr = document.createElementNS(NS, 'rect');
+  cr.setAttribute('x', VX); cr.setAttribute('y', VY);
+  cr.setAttribute('width', VW); cr.setAttribute('height', VH);
+  clip.appendChild(cr); defs.appendChild(clip);
+  cageG.setAttribute('clip-path', 'url(#cage-clip)');
   const bars = [...src.querySelectorAll('path,polygon')].map((el) => {
     const g = document.createElementNS(NS, 'g'); g.appendChild(el.cloneNode(true)); cageG.appendChild(g);
     const bb = g.getBBox(); return { g, bb, vert: bb.height > bb.width, k: 1, goal: 1 };
