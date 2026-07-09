@@ -29,6 +29,8 @@ CONFIG={
                  'crown':'none','crown-jewels':'none','crown-pearls':'none',    # crown rides the head (no gaze reproject)
                  'crown-background-left':'none','crown-background-right':'none',
                  'l-mustache':'mouth','r-mustache':'mouth'}},
+ 'nerd':{'versions':{}, 'eyefx':['l-eye','r-eye'],                               # brows/mouth generic; eyes shrink+shift-on-X (lens refraction)
+         'adds':{'glasses':{'gaze':'plane','z':135,'dy':-16}}},                  # glasses on a plane just in front of the head sphere (Rx~123), nudged up
  'horse':{'versions':{}, 'hide':['mouth'],                                       # eyes/brows generic; base mouth hidden (the horse mouth rides the snout)
           'adds':{'l-ear':'none','r-ear':'none','forelock':'none','hair':'none',  # ride the head
                   'snout-front':'tube-front','l-nostril':'tube-front',             # muzzle plate at depth Z (parallax)
@@ -84,6 +86,13 @@ def trace_wl(label):                                      # all contours -> smoo
 def centre(label):
     m,W,H=mask_of(label,700); ys,xs=np.where(m)
     return [round(VB[0]+(xs.min()+xs.max())/2/W*VB[2],2), round(VB[1]+(ys.min()+ys.max())/2/H*VB[3],2)]
+def bbox_of(pairs):                                       # (cx,cy,w,h) VB coords for a set of (transform,d)
+    W=700; H=int(round(W*VB[3]/VB[2]))
+    inner=''.join(f'<g transform="{tf}"><path fill="#000" d="{d}"/></g>' for tf,d in pairs)
+    doc=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{VB[0]} {VB[1]} {VB[2]} {VB[3]}" width="{W}" height="{H}">{inner}</svg>'
+    m=np.array(Image.open(io.BytesIO(cairosvg.svg2png(bytestring=doc.encode(),output_width=W,output_height=H,background_color='white'))).convert('L'))<128
+    ys,xs=np.where(m); x0,x1=VB[0]+xs.min()/W*VB[2],VB[0]+xs.max()/W*VB[2]; y0,y1=VB[1]+ys.min()/H*VB[3],VB[1]+ys.max()/H*VB[3]
+    return ((x0+x1)/2,(y0+y1)/2,x1-x0,y1-y0)
 def ends(label):                                          # the two tips of an elongated shape (principal axis)
     m,W,H=mask_of(label,700); ys,xs=np.where(m)
     P=np.stack([VB[0]+xs/W*VB[2], VB[1]+ys/H*VB[3]],1)    # ink points, VB coords
@@ -115,12 +124,27 @@ for lb,spec in cfg['adds'].items():
     if isinstance(spec,dict):
         if spec.get('fill'): a['fill']=spec['fill']
         if spec.get('below'): a['below']=True
+        if spec.get('dy'): a['dy']=spec['dy']             # vertical nudge (into the gaze reproject dip)
+        if spec.get('z'): a['z']=spec['z']                # plane depth in front of the face (gaze='plane')
     if a['gaze']=='tube-trunk':                           # bridge head<->muzzle: base = end nearer head, tip = end nearer muzzle
         e0,e1=ends(lb); Cm=np.array(centre('snout-front'))
         (tip,base)=(e0,e1) if np.hypot(*(e0-Cm))<np.hypot(*(e1-Cm)) else (e1,e0)
         a['base']=[round(base[0],2),round(base[1],2)]; a['tip']=[round(tip[0],2),round(tip[1],2)]
     out['adds'][lb]=a
 FTd=json.load(open(FT))
+if cfg.get('eyefx'):                                       # move+shrink the base eyes to sit behind the lenses
+    seen=set(); pairs=[]                                                       # pupils, wherever labelled (dedupe by d)
+    for lb in cfg['eyefx']:
+        for tf,d in part_paths(lb):
+            if d not in seen: seen.add(d); pairs.append((tf,d))
+    pupils=sorted((bbox_of([pd]) for pd in pairs), key=lambda b:b[0])          # left -> right by x
+    order=sorted(['eye-l','eye-r'], key=lambda s:np.mean([p[0] for p in FTd[s]['happy']]))
+    out['eyefx']={}
+    for slot,(cx,cy,w,h) in zip(order,pupils):
+        base=np.array(FTd[slot]['happy']); bw,bh=base.max(0)-base.min(0)
+        s=round(float(np.hypot(w,h)/np.hypot(bw,bh)),3)
+        out['eyefx'][slot]={'c':[round(cx,2),round(cy,2)],'s':s}
+    print('  eyefx:',out['eyefx'])
 for lb,slot in cfg['versions'].items():
     if not part_ds(lb): print('  (missing version:',lb,')'); continue
     merge=3 if slot.startswith('brow') else 0

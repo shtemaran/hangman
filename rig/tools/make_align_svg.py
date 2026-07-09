@@ -25,7 +25,7 @@ FTd=json.load(open(FT))
 ts=open(TSVG).read(); tvb=[float(x) for x in re.search(r'viewBox="([^"]*)"',ts).group(1).split()]
 labels=[l for l in re.findall(r'inkscape:groupmode="layer"[^>]*?inkscape:label="([^"]*)"', ts) if l not in SKIP]
 def layer_paths(label):
-    m=re.search(r'<g\b[^>]*inkscape:label="'+re.escape(label)+r'"[^>]*>(.*?)</g>', ts, re.S)
+    m=re.search(r'<g\b[^>]*inkscape:label="'+re.escape(label)+r'"[^>]*?(?<!/)>(.*?)</g>', ts, re.S)  # (?<!/)> skips self-closing empty layers
     return re.findall(r'<path\b[^>]*?/>', m.group(1), re.S) if m else []
 def d_of(p): m=re.search(r'\bd="([^"]*)"',p); return m.group(1) if m else ''
 def rmask(inner, VB, W):
