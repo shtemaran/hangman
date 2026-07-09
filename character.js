@@ -17,6 +17,32 @@
   let running = false;                  // whether idle life should be on
   let pendingStep = 0;                  // step to apply once the rig is mounted
 
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // Expression follows the cage: step 0 = happy (+1) ... last step = sad (-1).
+  // On each change snap to the full reaction, then ease a few % back toward
+  // neutral over a randomized ~1.5-3s. Driven off the cage's onStep hook.
+  let exprRaf = null, reactT = 1, relaxT = 1, relaxStart = 0, relaxEnd = 0;
+  function reactToStep(step, total) {
+    const np = 1 - (step / total) * 2;                     // full reaction for this step
+    reactT = np; relaxT = np * (1 - (0.05 + Math.random() * 0.05));  // settle 5-10% back
+    const now = performance.now();
+    relaxStart = now + 400;                                // hold a beat, then relax
+    relaxEnd = relaxStart + (1500 + Math.random() * 1500);
+    if (exprRaf == null) exprRaf = requestAnimationFrame(exprLoop);
+  }
+  function exprLoop() {
+    if (!rig) { exprRaf = null; return; }
+    const now = performance.now(); let target = reactT;
+    if (now >= relaxStart) {
+      const u = clamp((now - relaxStart) / (relaxEnd - relaxStart), 0, 1);
+      target = reactT + (relaxT - reactT) * (u * u * (3 - 2 * u));   // smoothstep relax
+    }
+    rig.p.expr += (target - rig.p.expr) * 0.12;
+    if (now < relaxEnd || Math.abs(target - rig.p.expr) > 0.002) exprRaf = requestAnimationFrame(exprLoop);
+    else { rig.p.expr = target; exprRaf = null; }
+  }
+
   async function mount() {
     if (mounted || mounting || !host()) return;
     mounting = true;
@@ -29,7 +55,7 @@
       el.innerHTML = svgText;
       const svg = el.querySelector('svg');
       rig = window.createRig(svg, targets);
-      cage = window.createCage(svg, rig);
+      cage = window.createCage(svg, rig, { onStep: reactToStep });
       mounted = true;
       rig.idle(running);
       cage.setStep(pendingStep, false); // place bars for the current step, no animation
