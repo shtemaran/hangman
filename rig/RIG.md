@@ -55,7 +55,7 @@ Set any of these live; the rAF loop applies them next frame.
 | `breath` | 0..1 | Breath phase (0.5 rest); drives torso expand, bob, necklace |
 | `bodyLean` | −1..1 | Whole-body lean about the feet |
 | `hands` | `'neutral'` \| `'thumbsup'` | Hand-pose swap |
-| `clown`, `king`, `nerd`, `girl` | 0..1 | Modifier levels (fade the modifier in) |
+| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock` | 0..1 | Modifier levels (fade the modifier in) |
 
 Emotions are **combinatorial**: `expr` sets the happy↔sad base, and each overlay
 (`surprise`/`thoughtful`/`confused`) composes on top — you can be sad *and*
@@ -138,10 +138,22 @@ on the whole head group.
 
 A modifier ADDS features (drawn + animated) and/or OVERRIDES face parts, faded in
 by its level param (`rig.p.<name>` 0..1). Data lives in **`modifiers.json`**,
-built from an annotated tracing. Built-in: **clown, king, nerd, girl**. **horse**
-is frozen research in `generated/horse_modifier.json` (see the tube gazes below).
+built from an annotated tracing. Built-in: **clown, king, nerd, girl, sailor,
+police, clock**. **horse** is frozen research in `generated/horse_modifier.json`
+(see the tube gazes below).
 
-A modifier entry = `{ adds:{…}, versions:{…}, hide:[…], eyefx:{…} }`.
+A modifier entry = `{ adds:{…}, versions:{…}, facefx:{…}, eyefx:{…}, hide:[…],
+headMorph:{…} }`. A quick tour of the built-ins:
+
+- **clown** — nose/lipstick/makeup adds + versions replacing eyes/brows/mouth.
+- **king** — crown (with a white occluder under the features) + mustache; eyes/brows generic.
+- **nerd** — glasses on a parallax plane + eyefx (eyes shrink behind the lenses).
+- **girl** — earrings, breathing beaded necklace, lashed-eye version.
+- **sailor** — outline cap (occluder under the features) + anchor + hair + mirrored ears.
+- **police** — solid cap assembled by `stack` (white base + black detail) + badge star.
+- **clock** — turns the head into a real-time clock: `headMorph` (egg→round rim),
+  numbers/ticks/hands (real-time `hand` gaze), flat-disc gaze, `facefx` eyes+mouth,
+  brows hidden. See *Clock: the flat-disc modifier* below.
 
 ### `adds` — extra features
 
@@ -158,6 +170,7 @@ head. Value is either a gaze string or `{gaze, …opts}`:
 | `body` | parented to the **torso** group, not the head (stays put on head-turn; leans/breathes with the body) | girl necklace |
 | `tube-front` | rigid plate at `cfg.snoutZ` sticking out of the head (big parallax) | horse muzzle |
 | `tube-trunk` | stretch-bridge: base rides the sphere, tip follows the muzzle plate | horse snout trunk |
+| `hand` | rotates around a `center` pivot to the **real current time** (`role: 'hour'\|'minute'`; drawn angle measured at build) | clock hands |
 
 Add options (in the `{…}` form):
 
@@ -166,6 +179,17 @@ Add options (in the `{…}` form):
 - `z` — plane depth for `gaze:'plane'`.
 - `below:true` — draw under the face features (occluder; e.g. king crown white plate).
 - `fill` — override ink colour.
+- `clip` — per-add override of `cfg.earClip` (the `gaze:'ear'` hide threshold).
+- `earY` — scale a `gaze:'ear'` add's vertical motion (full X ride, reduced Y).
+- `mirror:'<add>'` — this add is another add **reflected across the head centre**
+  (sailor's left ear from the right); reuses its paths in a reflect group.
+- `occHead:true` — for an occluder+front add, route the white occluder **under**
+  the features (occlude the head only, keep brows) while the ink stays on top;
+  both zoom in together. Sailor/king caps.
+- `stack:[[label,fill],…]` — ordered raw parts drawn back-to-front with explicit
+  fills (police cap: white base occluder + black line-art).
+- `raw:true` — keep raw geometry (evenodd detail) instead of re-tracing to one outline.
+- `fade:true` — reveal by opacity crossfade instead of the zoom-from-nothing.
 - `beads:[…]` — a per-bead add: each label becomes its own group riding a curve
   fit through the bead centres (chord + per-bead sag), squash/stretched by breath
   (`cfg.neckBreath`). Girl necklace.
@@ -184,12 +208,30 @@ Clown re-shapes all; king only mouth; girl only the lashed eyes; nerd none.
 ### `hide` — remove a base part
 
 `hide:['mouth']` fades a base slot out by the modifier level (horse hides the
-base mouth because its own mouth rides the snout).
+base mouth). Brow slots are **zoomed to nothing** instead of faded (clock).
 
-### `eyefx` — shift/scale the base eyes
+### `eyefx` / `facefx` — reposition + resize the base features (keep emotions)
 
-`eyefx[eye-l/r] = {c:[x,y], s}` moves + scales the base eye by the level (nerd
-lens refraction — X-only shift, keeps eye height). Emotions/blink still apply.
+Instead of *replacing* a feature (a `version`, which loses expressions), these
+move + scale the base eye/mouth **keeping its shape**, so `expr`/overlays still
+morph it. `eyefx[eye-l/r] = {c,s}` is nerd's X-only eye shrink. `facefx[eye-l/r/
+mouth] = {c,s}` is full-2D and covers the mouth too (clock) — the clock is a
+working dial that still emotes. Blink/emotions apply on top.
+
+### `headMorph` — reshape the head
+
+`headMorph:{c,rx,ry}` scales + shifts the brush head into a target circle by the
+modifier level (clock: egg head → round rim, a real shape transition, no
+crossfade). The head sphere geometry (`headC/Rx/Ry`) comes from `win-head` only.
+
+### Clock: the flat-disc modifier
+
+The clock stacks the pieces above: `headMorph` rounds the head, `facefx`
+repositions the eyes+mouth onto the dial, `hide` zooms the brows away, numbers/
+ticks/`center` are plain adds, and the two `gaze:'hand'` adds rotate to the real
+time. When any modifier is on, the head can also switch from the **sphere** gaze
+to a **flat-disc** gaze — features stop reprojecting and the whole head
+foreshortens by `cos(yaw)/cos(pitch)`, tilting like a wall clock.
 
 ### Building a modifier (pipeline)
 
@@ -214,6 +256,42 @@ python tools/build_modifier_aligned.py girl generated/girl_align.svg happy
 Every generated PNG frames the character identically, so **one canonical
 transform** aligns them all (hand-tuned once). Inspect where anything actually
 renders with `python tools/svg_query.py <svg> <label…>` (real headless browser).
+
+---
+
+## Compatibility & suggestion
+
+The game can stack several modifiers + emotions, so two systems tell it what
+fits together and what to pick.
+
+### Compatibility — which combos are valid
+
+An **incompatibility list** of minimal forbidden token-sets. A requested set
+(active modifier names + emotion tokens: `expression`/`surprise`/`thoughtful`/
+`confused`) is compatible **iff no forbidden set is a subset of it**.
+
+- `tools/build_compat.py` → `compatibility.json` — **auto-derives** the list from
+  each modifier's slot claims (two modifiers sharing an exclusive slot —
+  head/eyes/brows/mouth/ears/neck — clash) plus the grab matrix (a modifier that
+  *locks* a face part clashes with an emotion that fully *owns* that part), then
+  applies hand `ALLOW`/`ADD` tweaks. Re-run whenever a modifier changes.
+- `compat.js` — `makeCompat(data)`:
+  - `ok(active)` → true iff compatible
+  - `conflicts(active)` → which forbidden sets fired (for UI/debug)
+  - `allowedToAdd(active, candidates)` → which tokens can still be added
+
+### Suggestion — pick a set from theme tags
+
+- `tags.json` — per-character theme tags (`clock: ["time","hour",…]`), hand-authored
+  (kept out of the generated `modifiers.json`).
+- `suggest.js` — `makeSuggest(tags, compat)`:
+  - `scores(input)` → ranked tag-overlap score per character
+  - `pick(input, {max, minScore, seed})` → best set, ranked by score, ties broken
+    by a **deterministic `seed`** (reproducible, but different seeds shuffle equal
+    matches), then greedily kept **compatible** — always a valid combo.
+
+The tuner shows a live **COMPATIBLE / INCOMPATIBLE** banner + the forbidden list
+with the current conflicts highlighted.
 
 ---
 
@@ -243,7 +321,7 @@ steps** (`kAt(i, step)`). Each bar `k`: `1` = fully off-frame, `0` = at rest,
 
 | File | What |
 |---|---|
-| `rig_tuner.html` | **Main tuner** — every param, `cfg` ranges, the grab matrix, modifier sliders, blink/wink/hands/idle, export config JSON |
+| `rig_tuner.html` | **Main tuner** — every param, `cfg` ranges, the grab matrix, modifier sliders, blink/wink/hands/idle, export config JSON, and a live **compatibility panel** |
 | `bars_demo.html` | Cage bars, 14 steps, with the reacting character |
 | `blink_demo.html` | Blink/wink timing |
 | `finger_demo.html` | Spline-bone finger curl (per-finger + "all") |
@@ -259,11 +337,14 @@ steps** (`kAt(i, step)`). Each bar `k`: `1` = fully off-frame, `0` = at rest,
 | `tools/trace_png.py` | ink PNG/JPEG → annotatable SVG (smooth beziers, empty target layers) |
 | `tools/make_align_svg.py` | build the manual-alignment SVG at the canonical transform |
 | `tools/build_modifier_aligned.py` | `CONFIG` + aligned SVG → `modifiers.json` |
+| `tools/build_compat.py` | `modifiers.json` + grab matrix + tweaks → `compatibility.json` |
 | `tools/build_face_targets.py` | build `face_targets.json` (eye/brow/mouth morph targets) |
 | `tools/svg_query.py` | headless-browser: where does an element actually render? |
 | `tools/bones.py`, `build_finger_bend.py`, `build_arm_bend.py` | spline-bone baking (see BONES.md) |
 | `face_targets.json` | corresponded 100-pt outlines per part × key (neutral/happy/sad/surprised/shut) |
-| `modifiers.json` | built modifiers (clown, king, nerd, girl) |
+| `modifiers.json` | built modifiers (clown, king, nerd, girl, sailor, police, clock) |
+| `compat.js` + `compatibility.json` | compatibility query helper + forbidden-set data |
+| `suggest.js` + `tags.json` | tag-based character-set suggester + per-character tags |
 
 **Deps:** `cairosvg pillow numpy scipy scikit-image` for the build tools;
 `chromium` (headless) for `svg_query.py` and static renders.

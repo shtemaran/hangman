@@ -11,9 +11,21 @@
   .ctl output{text-align:right;color:#555}
   .row{display:flex;gap:.4rem;flex-wrap:wrap}
   button{font-size:12px;padding:.25rem .5rem}
+  #compat-status{padding:.4rem .6rem;border-radius:4px;font-weight:600;text-align:center}
+  .compat-ok{background:#e6f7e6;color:#1a7f1a}
+  .compat-bad{background:#fdeaea;color:#c0392b}
+  #compat-active{font-size:12px;color:#555}
+  #compat-list{font-size:11px;line-height:1.8}
+  .combo{padding:1px 5px;border-radius:3px;background:#eee;color:#666;white-space:nowrap}
+  .combo.hit{background:#f6b8b8;color:#8a1414;font-weight:600}
 </style>
 <div id="stage">loading…</div>
 <div class="panel" id="params"><h4>Pose (params)</h4></div>
+<div class="panel" id="compat"><h4>Compatibility</h4>
+  <div id="compat-status"></div>
+  <div id="compat-active"></div>
+  <div id="compat-list"></div>
+</div>
 <div class="panel" id="grab"><h4>Emotion grab (× part): 1 owns · 0 shares</h4></div>
 <div class="panel">
   <h4>Actions</h4>
@@ -30,12 +42,13 @@
   <pre id="out" style="font-size:11px;white-space:pre-wrap"></pre>
 </div>
 <script src="./rig.js"></script>
+<script src="./compat.js"></script>
 <script>
 const PARAMS=[ // key, min, max, default
   ['headX',-1,1,0],['headY',-1,1,0],['headTilt',-1,1,0],
   ['gazeX',-1,1,0],['gazeY',-1,1,0],
   ['eyeOpenL',0,1,1],['eyeOpenR',0,1,1],
-  ['expr',-1,1,1],['surprise',0,1,0],['thoughtful',0,1,0],['confused',0,1,0],['clown',0,1,0],['king',0,1,0],['nerd',0,1,0],['girl',0,1,0],['bodyLean',-1,1,0],['breath',0,1,.5] ];
+  ['expr',-1,1,1],['surprise',0,1,0],['thoughtful',0,1,0],['confused',0,1,0],['clown',0,1,0],['king',0,1,0],['nerd',0,1,0],['girl',0,1,0],['sailor',0,1,0],['police',0,1,0],['clock',0,1,0],['bodyLean',-1,1,0],['breath',0,1,.5] ];
 const RANGES=[ // cfg key, min, max
   ['headX',0,60],['headY',0,60],['headTilt',0,20],['gazeYaw',0,70],['gazePitch',0,50],
   ['constrainEye',0,1],['constrainMouth',0,1],
@@ -44,8 +57,9 @@ const RANGES=[ // cfg key, min, max
 Promise.all([
   fetch('../assets/marduk_semantic.svg').then(r=>r.text()),
   fetch('./face_targets.json').then(r=>r.json()),
-  fetch('./modifiers.json').then(r=>r.json()).catch(()=>({}))
-]).then(([svgText,targets,mods])=>{
+  fetch('./modifiers.json').then(r=>r.json()).catch(()=>({})),
+  fetch('./compatibility.json').then(r=>r.json()).catch(()=>({incompatible:[]}))
+]).then(([svgText,targets,mods,compData])=>{
   document.getElementById('stage').innerHTML=svgText;
   const svg=document.querySelector('#stage svg');
   const rig=createRig(svg,targets,mods);
@@ -58,8 +72,23 @@ Promise.all([
     inp.oninput=()=>{on(+inp.value); out.textContent=(+inp.value).toFixed(2);};
     host.appendChild(row); return inp;
   }
+  // ---- compatibility indicator ----
+  const compat=makeCompat(compData), MODNAMES=['clown','king','nerd','girl','sailor','police','clock'];
+  const activeTokens=()=>{ const t=[];
+    for(const m of MODNAMES) if((rig.p[m]||0)>0.01) t.push(m);
+    if(Math.abs(rig.p.expr)>0.1) t.push('expression');
+    for(const e of ['surprise','thoughtful','confused']) if((rig.p[e]||0)>0.01) t.push(e);
+    return t; };
+  const key=c=>c.slice().sort().join('+');
+  const statusEl=document.getElementById('compat-status'), activeEl=document.getElementById('compat-active'), listEl=document.getElementById('compat-list');
+  listEl.innerHTML=(compData.incompatible||[]).map(c=>`<span class="combo" data-k="${key(c)}">${c.join(' + ')}</span>`).join(' ');
+  function refreshCompat(){ const toks=activeTokens(), ok=compat.ok(toks), hits=new Set(compat.conflicts(toks).map(key));
+    statusEl.className=ok?'compat-ok':'compat-bad'; statusEl.textContent=ok?'✓ COMPATIBLE':'✗ INCOMPATIBLE';
+    activeEl.textContent='active: '+(toks.join(', ')||'(none)');
+    listEl.querySelectorAll('.combo').forEach(el=>el.classList.toggle('hit', hits.has(el.dataset.k))); }
+
   const pHost=document.getElementById('params'), pInputs={};
-  PARAMS.forEach(([k,mn,mx,dv])=> pInputs[k]=slider(pHost,k,mn,mx,dv,0.01,v=>rig.p[k]=v));
+  PARAMS.forEach(([k,mn,mx,dv])=> pInputs[k]=slider(pHost,k,mn,mx,dv,0.01,v=>{rig.p[k]=v; refreshCompat();}));
   RANGES.forEach(([k,mn,mx])=> slider(document.getElementById('ranges'),k,mn,mx,rig.cfg[k],(mx-mn)/200,v=>rig.cfg[k]=v));
   // emotion x part grab matrix — one slider per cell of rig.cfg.grab
   const gHost=document.getElementById('grab');
@@ -73,5 +102,6 @@ Promise.all([
   document.getElementById('idle').onchange=e=>rig.idle(e.target.checked);
   document.getElementById('reset').onclick=()=>{PARAMS.forEach(([k,mn,mx,dv])=>{rig.p[k]=dv;pInputs[k].value=dv;pInputs[k].dispatchEvent(new Event('input'));});};
   document.getElementById('export').onclick=()=>{document.getElementById('out').textContent=JSON.stringify(rig.cfg,null,1);};
+  refreshCompat();
 });
 </script>

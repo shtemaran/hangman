@@ -31,8 +31,8 @@ function createRig(svg, T, mods){
   const eyeG={}, eyeP={}, browG={}, browP={};
   for(const s of ['l','r']) [browG[s],browP[s]]=mkFeat('brow-'+s);
   for(const s of ['l','r']) [eyeG[s],eyeP[s]]=mkFeat('eye-'+s);
-  const mouthP=document.createElementNS(NS,'path'); mouthP.setAttribute('fill','#081C1A'); mouthP.id='rig-mouth';
-  head.appendChild(mouthP);
+  const mouthG=mkG('rig-mouth'), mouthP=document.createElementNS(NS,'path'); mouthP.setAttribute('fill','#081C1A'); mouthP.id='rig-mouth-shape';
+  mouthG.appendChild(mouthP); head.appendChild(mouthG);   // group takes the gaze; inner path takes facefx (reposition/resize)
   $('win-torso')&&body.appendChild($('win-torso'));
   const srcArmR=$('win-hands-r'), srcArmL=$('win-hands-l');   // sources for hand poses (cloned, then removed)
   srcArmR&&srcArmR.remove(); srcArmL&&srcArmL.remove();
@@ -83,8 +83,16 @@ function createRig(svg, T, mods){
       pp.setAttribute('fill',sp.fill); if(sp.rule)pp.setAttribute('fill-rule',sp.rule); if(sp.tf)pp.setAttribute('transform',sp.tf); pp.setAttribute('d',sp.d); par.appendChild(pp); };
     const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
       const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g');
-      let beads=null, cx=0;
-      if(a.beads){                                              // necklace: each bead its own group so it can ride a deforming curve
+      let beads=null, cx=0, refG=null, srcC=null, occZg=null;
+      if(a.mirror){                                             // this add = another add reflected across the head centre (e.g. left ear from right)
+        const srcA=m.adds[a.mirror]; srcC=srcA.c;
+        refG=document.createElementNS(NS,'g'); (srcA.paths||[]).forEach(sp=>addPath(refG,sp)); zg.appendChild(refG);
+      }
+      else if(a.occHead && a.paths){                            // occluder(white) UNDER the features (head only) + ink on top — both raw, both zoom
+        occZg=document.createElementNS(NS,'g'); const occRg=document.createElementNS(NS,'g'); occRg.id='rig-mod-'+mn+'-'+lb+'-occ'; occRg.appendChild(occZg); underG.appendChild(occRg);
+        a.paths.forEach(sp=> addPath(sp.fill==='#ffffff'?occZg:zg, sp));
+      }
+      else if(a.beads){                                         // necklace: each bead its own group so it can ride a deforming curve
         beads=a.beads.map(b=>{ const g=document.createElementNS(NS,'g'); b.paths.forEach(sp=>addPath(g,sp)); zg.appendChild(g); return {g, c:b.c}; });
         const x0=beads[0].c[0], x1=beads[beads.length-1].c[0], y0=beads[0].c[1], y1=beads[beads.length-1].c[1];
         cx=(x0+x1)/2; beads.forEach(b=>{ const t=(x1-x0)?(b.c[0]-x0)/(x1-x0):0; b.sag=b.c[1]-(y0+t*(y1-y0)); });  // sag = drop below the end-to-end chord
@@ -93,23 +101,30 @@ function createRig(svg, T, mods){
       else { const pth=document.createElementNS(NS,'path'); pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); }
       rg.id='rig-mod-'+mn+'-'+lb; rg.appendChild(zg);
       (a.gaze==='body'?bodyG : a.below?underG:overG).appendChild(rg);
-      return {rg, zg, c:a.c, zc:(lb==='lipstick'&&mouthC)?mouthC:a.c, gaze:a.gaze||'eye', dy:a.dy||0, z:a.z||0,   // zc = zoom pivot; dy = vertical nudge; z = plane depth
-              base:a.base, tip:a.tip, beads, cx,                        // tube-trunk bridge anchors; necklace bead groups + curve centre
+      return {rg, zg, c:a.mirror?null:a.c, zc:a.mirror?null:((lb==='lipstick'&&mouthC)?mouthC:a.c), gaze:a.gaze||'eye', dy:a.dy||0, z:a.z||0,
+              base:a.base, tip:a.tip, beads, cx, refG, srcC, mirror:a.mirror||null, clip:(a.clip==null?null:a.clip), earY:(a.earY==null?null:a.earY), occZg,   // tube-trunk; necklace; mirror; ear clip; ear Y-scale; under-features occluder zoom
+              pivot:a.pivot, ang:a.angle, role:a.role, fade:a.fade||false,   // clock hand: pivot/angle/role; fade = opacity crossfade reveal
               a: lb==='lipstick' ? MOUTH_MORPH_END : (labels.length>1? i/(labels.length-1)*0.5 : 0) }; });   // lipstick waits for the mouth morph
   }
 
   // base face slots a modifier hides (e.g. the horse hides the base mouth — its own mouth rides the snout)
-  const hideEl={ mouth:mouthP, 'eye-l':eyeG.l, 'eye-r':eyeG.r, 'brow-l':browG.l, 'brow-r':browG.r };
+  const hideEl={ mouth:mouthG, 'eye-l':eyeG.l, 'eye-r':eyeG.r };   // brows hide by zoom (below), not opacity
   const HIDE={};   // slot -> [modifier names that hide it]
   for(const mn in MODS){ for(const s of (MODS[mn].hide||[])) (HIDE[s]=HIDE[s]||[]).push(mn); }
   // eyefx: a modifier shrinks+shifts the base eyes (e.g. nerd lens refraction). slot -> [{mn, c, s}]
   const EYEFX={};
   for(const mn in MODS){ const fx=MODS[mn].eyefx; if(!fx) continue;
     for(const slot in fx) (EYEFX[slot]=EYEFX[slot]||[]).push({mn, c:fx[slot].c, s:fx[slot].s}); }
+  // facefx: reposition + resize a base feature (eyes AND mouth), full 2D, keeping its shape so emotions still morph it
+  const FACEFX={};
+  for(const mn in MODS){ const fx=MODS[mn].facefx; if(!fx) continue;
+    for(const slot in fx) (FACEFX[slot]=FACEFX[slot]||[]).push({mn, c:fx[slot].c, s:fx[slot].s}); }
+  const winHead=$('win-head');
+  let headMorph=null; for(const mn in MODS){ if(MODS[mn].headMorph) headMorph={mn, ...MODS[mn].headMorph}; }   // scale/drop the head into the clock rim
 
   // ---- pivots from geometry ----
   const bb=el=>el.getBBox();
-  const hb=bb(head), bd=bb(body);
+  const hb=bb(winHead||head), bd=bb(body);   // head sphere geometry from the head circle only (not the features/mod-adds in the group)
   const neck =[hb.x+hb.width/2, hb.y+hb.height*0.97];
   const feet =[bd.x+bd.width/2, bd.y+bd.height];
   const belly=[bd.x+bd.width/2, bd.y+bd.height*0.55];
@@ -143,7 +158,7 @@ function createRig(svg, T, mods){
                      thoughtful:{ mouth:1, eye:0.5, brow:1 },
                      confused:{ mouth:1, eye:0.5, brow:1 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, sailor:0, police:0, clock:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
@@ -168,24 +183,39 @@ function createRig(svg, T, mods){
     };
     const sphere=(bx,by,dip,k)=>{ const [nx,ny,sx,sy]=spherePt(bx,by,dip,k);
       return `translate(${nx} ${ny}) scale(${sx} ${sy}) translate(${-bx} ${-by})`; };
-    X(eyeG.l, sphere(eyeBase.l[0],eyeBase.l[1],0,cfg.constrainEye));
-    X(eyeG.r, sphere(eyeBase.r[0],eyeBase.r[1],0,cfg.constrainEye));
-    for(const s of ['l','r']){ const list=EYEFX['eye-'+s];   // lens refraction: shrink+shift the eye inside its sphere group
-      if(!list){ continue; } let best=null,L=0;
-      for(const fx of list){ const l=clamp(p[fx.mn]||0,0,1); if(l>L){L=l;best=fx;} }
-      const cb=eyeBase[s];
-      if(!best||L<=0){ eyeP[s].removeAttribute('transform'); }
-      else{ const sL=1+L*(best.s-1), cx=cb[0]+L*(best.c[0]-cb[0]);   // shift on X only; keep the eye at its base height
-        eyeP[s].setAttribute('transform',`translate(${cx} ${cb[1]}) scale(${sL}) translate(${-cb[0]} ${-cb[1]})`); } }
-    X(mouthP, sphere(mouthBase[0],mouthBase[1],0,cfg.constrainMouth));
-    X(browG.l, sphere(browBase.l[0],browBase.l[1],(1-clamp(p.eyeOpenL,0,1))*cfg.browDrop,cfg.constrainEye));
-    X(browG.r, sphere(browBase.r[0],browBase.r[1],(1-clamp(p.eyeOpenR,0,1))*cfg.browDrop,cfg.constrainEye));
+    // clock: the head is a FLAT disc, not a sphere — features stop reprojecting (fy/fp -> 0) and the
+    // whole head foreshortens by cos(yaw)/cos(pitch), so it tilts like a wall clock turning.
+    const clockL=clamp(p.clock||0,0,1), fy=yaw*(1-clockL), fp=pitch*(1-clockL);
+    const sphereF=(bx,by,dip,k)=>{ const [nx,ny,sx,sy]=spherePt(bx,by,dip,k,fy,fp);
+      return `translate(${nx} ${ny}) scale(${sx} ${sy}) translate(${-bx} ${-by})`; };
+    X(eyeG.l, sphereF(eyeBase.l[0],eyeBase.l[1],0,cfg.constrainEye));
+    X(eyeG.r, sphereF(eyeBase.r[0],eyeBase.r[1],0,cfg.constrainEye));
+    // reposition/resize a base feature (eyes X-only via eyefx=nerd; eyes+mouth full-2D via facefx=clock) — keeps its shape so emotions still morph it
+    const fxTf=(slot,cb)=>{ let best=null,L=0,xOnly=false;
+      for(const fx of (FACEFX[slot]||[])){ const l=clamp(p[fx.mn]||0,0,1); if(l>L){L=l;best=fx;xOnly=false;} }
+      for(const fx of (EYEFX[slot]||[])){ const l=clamp(p[fx.mn]||0,0,1); if(l>L){L=l;best=fx;xOnly=true;} }
+      if(!best||L<=0) return '';
+      const sL=1+L*(best.s-1), cx=cb[0]+L*(best.c[0]-cb[0]), cy=xOnly?cb[1]:cb[1]+L*(best.c[1]-cb[1]);
+      return `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${sL.toFixed(4)}) translate(${(-cb[0]).toFixed(2)} ${(-cb[1]).toFixed(2)})`; };
+    for(const s of ['l','r']){ const t=fxTf('eye-'+s,eyeBase[s]); t?eyeP[s].setAttribute('transform',t):eyeP[s].removeAttribute('transform'); }
+    X(mouthG, sphereF(mouthBase[0],mouthBase[1],0,cfg.constrainMouth));
+    { const t=fxTf('mouth',mouthBase); t?mouthP.setAttribute('transform',t):mouthP.removeAttribute('transform'); }
+    X(browG.l, sphereF(browBase.l[0],browBase.l[1],(1-clamp(p.eyeOpenL,0,1))*cfg.browDrop,cfg.constrainEye));
+    X(browG.r, sphereF(browBase.r[0],browBase.r[1],(1-clamp(p.eyeOpenR,0,1))*cfg.browDrop,cfg.constrainEye));
     const bob=(p.breath-0.5)*cfg.breathBob;
-    X(head, `translate(${p.headX*cfg.headX} ${p.headY*cfg.headY-bob}) rotate(${p.headTilt*cfg.headTilt} ${neck[0]} ${neck[1]})`);
+    const dsx=1-clockL*(1-Math.cos(yaw)), dsy=1-clockL*(1-Math.cos(pitch));   // flat-disc foreshorten (clock)
+    X(head, `translate(${p.headX*cfg.headX} ${p.headY*cfg.headY-bob}) rotate(${p.headTilt*cfg.headTilt} ${neck[0]} ${neck[1]}) translate(${headC[0]} ${headC[1]}) scale(${dsx.toFixed(4)} ${dsy.toFixed(4)}) translate(${-headC[0]} ${-headC[1]})`);
     const bs=1+(p.breath-0.5)*cfg.breathScale;           // head: old subtle vertical breath
     X(body, `rotate(${p.bodyLean*cfg.lean} ${feet[0]} ${feet[1]}) translate(${belly[0]} ${belly[1]}) scale(1 ${bs}) translate(${-belly[0]} ${-belly[1]})`);
     const tsx=1+(p.breath-0.5)*cfg.torsoExpand;          // torso: expand horizontally with the inhale
     $('win-torso')&&X($('win-torso'), `translate(${torsoC[0]} ${torsoC[1]}) scale(${tsx} 1) translate(${-torsoC[0]} ${-torsoC[1]})`);
+    if(winHead&&headMorph){ const L=clamp(p[headMorph.mn]||0,0,1);        // morph the egg head into the round clock rim
+      const sx=1+L*(headMorph.rx/Rx-1), sy=1+L*(headMorph.ry/Ry-1), tx=L*(headMorph.c[0]-headC[0]), ty=L*(headMorph.c[1]-headC[1]);
+      winHead.setAttribute('transform',`translate(${tx.toFixed(2)} ${ty.toFixed(2)}) translate(${headC[0]} ${headC[1]}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-headC[0]} ${-headC[1]})`); }
+    for(const s of ['l','r']){ const list=HIDE['brow-'+s]; const cb=browBase[s];   // eyebrows zoom to nothing when a modifier hides them
+      if(!list){ browP[s].removeAttribute('transform'); continue; }
+      let v=1; for(const mn of list) v*=1-clamp(p[mn]||0,0,1);
+      browP[s].setAttribute('transform',`translate(${cb[0]} ${cb[1]}) scale(${v.toFixed(4)}) translate(${-cb[0]} ${-cb[1]})`); }
     for(const n in arms) arms[n].style.display=(p.hands===n)?'':'none';   // hand pose swap
     for(const s in HIDE){ const el=hideEl[s]; if(!el) continue;            // fade out base slots a modifier replaces
       let vis=1; for(const mn of HIDE[s]) vis*=1-clamp(p[mn]||0,0,1); el.style.opacity=vis; }
@@ -208,23 +238,32 @@ function createRig(svg, T, mods){
       return `translate(${bl[0].toFixed(2)} ${bl[1].toFixed(2)}) matrix(${a00.toFixed(4)} ${a10.toFixed(4)} ${a01.toFixed(4)} ${a11.toFixed(4)} 0 0) translate(${(-b[0]).toFixed(2)} ${(-b[1]).toFixed(2)})`; };
     // earring: its anchor rides the head sphere like the eyes (coordinate only — translate, no scale/foreshorten);
     // the earring on the receding side hard-disappears once the head turns past cfg.earClip toward it.
-    const earTf=it=>{ const [nx,ny]=spherePt(it.c[0],it.c[1],it.dy,cfg.constrainEye);
-      return `translate(${(nx-it.c[0]).toFixed(2)} ${(ny-it.c[1]).toFixed(2)})`; };
+    const earTf=it=>{ const [nx,ny]=spherePt(it.c[0],it.c[1],it.dy,cfg.constrainEye), yk=it.earY==null?1:it.earY;
+      return `translate(${(nx-it.c[0]).toFixed(2)} ${((ny-it.c[1])*yk).toFixed(2)})`; };   // full X ride, scaled Y motion
+    // clock hand: rotate around the centre pivot to the real time (from the drawn angle to the current angle)
+    const nowD=new Date(), hrs=nowD.getHours()%12, mins=nowD.getMinutes(), secs=nowD.getSeconds();
+    const handTf=it=>{ const target = it.role==='hour' ? -90+(hrs+mins/60)*30 : -90+(mins+secs/60)*6;
+      return `rotate(${(target-it.ang).toFixed(2)} ${it.pivot[0]} ${it.pivot[1]})`; };
     for(const mn in MODADD){ const L=clamp(p[mn]||0,0,1);  // raw level: each add gaze-reprojects + zooms in from nothing (staggered, after the morph)
       for(const it of MODADD[mn]){
+        if(it.mirror && !it.c){ it.c=[2*headC[0]-it.srcC[0], it.srcC[1]]; it.zc=it.c;   // reflect the source across the head centre (once)
+          it.refG.setAttribute('transform',`matrix(-1 0 0 1 ${(2*headC[0]).toFixed(2)} 0)`); }
         it.rg.setAttribute('transform',
           it.gaze==='tube-front' ? planeTf :                                  // muzzle plate: parallax plane at depth snoutZ
           it.gaze==='plane' ? planeAt(it.z, it.dy) :                          // glasses: plane a small distance in front of the face
           it.gaze==='tube-trunk' ? trunkTf(it) :                              // bridge: stretch base(head)->tip(muzzle)
           it.gaze==='ear' ? earTf(it) :                                       // earring: vertical-only, occlusion below
+          it.gaze==='hand' ? handTf(it) :                                     // clock hand: rotate to the real time
           (it.gaze==='none'||it.gaze==='tube'||it.gaze==='body') ? '' :       // none = ride the head; body = ride the torso group
           sphere(it.c[0], it.c[1], it.dy, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));
-        if(it.gaze==='ear'){ const side=Math.sign(it.c[0]-headC[0]);                 // this earring's side recedes when gazeX points to it
-          it.rg.style.display = side*clamp(p.gazeX,-1,1) > cfg.earClip ? 'none' : ''; }  // hard clip past the threshold
+        if(it.gaze==='ear'){ const side=Math.sign(it.c[0]-headC[0]);                 // this ear/earring's side recedes when gazeX points to it
+          it.rg.style.display = side*clamp(p.gazeX,-1,1) > (it.clip==null?cfg.earClip:it.clip) ? 'none' : ''; }  // hard clip past the (per-add) threshold
         if(it.beads){ const s=1+(p.breath-0.5)*cfg.neckBreath;                       // breathe the curve: inhale spreads it wide & lifts the sag
           for(const b of it.beads) b.g.setAttribute('transform',`translate(${((s-1)*(b.c[0]-it.cx)).toFixed(2)} ${(b.sag*(1/s-1)).toFixed(2)})`); }
         const z=smooth01((L-it.a)/ZOOM_SPAN);                  // grow from a point (at zc) to full
-        it.zg.setAttribute('transform',`translate(${it.zc[0]} ${it.zc[1]}) scale(${z.toFixed(4)}) translate(${-it.zc[0]} ${-it.zc[1]})`); } }
+        if(it.fade){ it.rg.style.opacity=z; }                  // reveal by opacity crossfade (e.g. the clock rim)
+        else { const zt=`translate(${it.zc[0]} ${it.zc[1]}) scale(${z.toFixed(4)}) translate(${-it.zc[0]} ${-it.zc[1]})`;
+          it.zg.setAttribute('transform',zt); if(it.occZg) it.occZg.setAttribute('transform',zt); } } }
   }
   let raf=requestAnimationFrame(function loop(){flush(); raf=requestAnimationFrame(loop);});
 

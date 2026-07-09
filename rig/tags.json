@@ -1,0 +1,9 @@
+{
+ "clock":  ["time","hour","minute","second","date","day","schedule","clock","watch","alarm","timer","deadline","late","early","tick","calendar","o'clock"],
+ "king":   ["king","royal","crown","ruler","throne","majesty","kingdom","queen","prince","noble","monarch","palace","rule","royalty"],
+ "clown":  ["clown","circus","funny","joke","laugh","party","silly","fun","comedy","prank","birthday","balloon","juggle"],
+ "nerd":   ["nerd","smart","glasses","study","school","book","science","math","geek","learn","exam","knowledge","computer","teacher"],
+ "girl":   ["girl","woman","lady","jewelry","earring","necklace","fancy","fashion","beauty","elegant","pretty","dress"],
+ "sailor": ["sailor","sea","ocean","ship","boat","navy","captain","anchor","water","wave","voyage","marine","port","fish"],
+ "police": ["police","cop","law","officer","badge","arrest","crime","security","guard","patrol","justice","uniform","siren"]
+}
