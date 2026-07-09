@@ -30,11 +30,16 @@ CONFIG={
                  'crown-background-left':'none','crown-background-right':'none',
                  'l-mustache':'mouth','r-mustache':'mouth'}},
  'girl':{'versions':{'l-eye':'eye-l','r-eye':'eye-r'},                            # lashed eyes; brows/mouth stay generic
-         'adds':{'l-earring':{'gaze':'ear','labels':['l-earring','l-earring-top']},    # stud + bead: vertical-only, occlude when its side turns away
-                 'r-earring':{'gaze':'ear','labels':['r-earring','r-earring-top']},
+         'adds':{'l-earring':{'gaze':'ear','earY':0.5,'labels':['l-earring','l-earring-top']},   # stud + bead: rides head, half Y motion, clips when its side turns away
+                 'r-earring':{'gaze':'ear','earY':0.5,'labels':['r-earring','r-earring-top']},
                  'necklace':{'gaze':'body','beads':['neckless-1','neckless-2','neckless-3','neckless-4','neckless-5','neckless-6','neckless-7']}}},  # beads ride a curve, squash/stretch with breath; on the torso
  'nerd':{'versions':{}, 'eyefx':['l-eye','r-eye'],                               # brows/mouth generic; eyes shrink+shift-on-X (lens refraction)
          'adds':{'glasses':{'gaze':'plane','z':135,'dy':-16}}},                  # glasses on a plane just in front of the head sphere (Rx~123), nudged up
+ 'sailor':{'versions':{},                                                        # eyes/brows/mouth generic
+         'adds':{'cap':{'gaze':'none','labels':['cap-occluder','cap','anchor'],'occHead':True},  # ink kept crisp; white occluder drawn UNDER the features (head only)
+                 'l-hair':{'gaze':'none','labels':['l-hair-ocluder','l-hair'],'occHead':True},   # hair, white occluder UNDER the features (head only)
+                 'r-ear':{'gaze':'ear','clip':0,'earY':0.5,'labels':['r-ear-ocluder','r-ear']},  # clip at dead-centre (only ever one ear); half Y motion
+                 'l-ear':{'gaze':'ear','clip':0,'earY':0.5,'mirror':'r-ear'}}},   # left ear = right ear mirrored across the head centre
  'horse':{'versions':{}, 'hide':['mouth'],                                       # eyes/brows generic; base mouth hidden (the horse mouth rides the snout)
           'adds':{'l-ear':'none','r-ear':'none','forelock':'none','hair':'none',  # ride the head
                   'snout-front':'tube-front','l-nostril':'tube-front',             # muzzle plate at depth Z (parallax)
@@ -146,6 +151,11 @@ def occ_front(full):                                      # occluder(white) behi
 out={'adds':{}, 'versions':{}}
 if cfg.get('hide'): out['hide']=cfg['hide']               # base face slots this modifier hides (faded by level)
 for name,spec in cfg['adds'].items():
+    if isinstance(spec,dict) and spec.get('mirror'):      # this add = another add mirrored across the head centre (done at runtime)
+        m={'gaze':spec['gaze'], 'mirror':spec['mirror']}
+        if 'clip' in spec: m['clip']=spec['clip']
+        if 'earY' in spec: m['earY']=spec['earY']
+        out['adds'][name]=m; continue
     if isinstance(spec,dict) and spec.get('beads'):       # per-bead add (necklace): each bead individually placeable
         a={'gaze':spec['gaze'], 'beads':[{'c':centre(lb),'paths':occ_front(part_full(lb))} for lb in spec['beads']]}
         a['c']=centre(spec['beads']); out['adds'][name]=a; continue
@@ -162,6 +172,9 @@ for name,spec in cfg['adds'].items():
         if spec.get('below'): a['below']=True
         if spec.get('dy'): a['dy']=spec['dy']             # vertical nudge (into the gaze reproject dip)
         if spec.get('z'): a['z']=spec['z']                # plane depth in front of the face (gaze='plane')
+        if 'clip' in spec: a['clip']=spec['clip']         # per-add ear-clip threshold (else cfg.earClip)
+        if 'earY' in spec: a['earY']=spec['earY']         # scale the ear's vertical gaze motion (1 = full)
+        if spec.get('occHead'): a['occHead']=True         # route the white occluder under the features (occlude the head only)
     if a['gaze']=='tube-trunk':                           # bridge head<->muzzle: base = end nearer head, tip = end nearer muzzle
         e0,e1=ends(src); Cm=np.array(centre('snout-front'))
         (tip,base)=(e0,e1) if np.hypot(*(e0-Cm))<np.hypot(*(e1-Cm)) else (e1,e0)
