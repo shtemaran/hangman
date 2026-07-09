@@ -35,6 +35,9 @@ CONFIG={
                  'necklace':{'gaze':'body','beads':['neckless-1','neckless-2','neckless-3','neckless-4','neckless-5','neckless-6','neckless-7']}}},  # beads ride a curve, squash/stretch with breath; on the torso
  'nerd':{'versions':{}, 'eyefx':['l-eye','r-eye'],                               # brows/mouth generic; eyes shrink+shift-on-X (lens refraction)
          'adds':{'glasses':{'gaze':'plane','z':135,'dy':-16}}},                  # glasses on a plane just in front of the head sphere (Rx~123), nudged up
+ 'police':{'versions':{},                                                        # eyes/brows/mouth generic
+         'adds':{'cap':{'gaze':'none','stack':[['cap-occluder','#ffffff'],['cap','#081C1A']]},  # white base (occludes head) + black detail on top, raw geometry
+                 'star':'none'}},                                                # black star on top of the cap
  'sailor':{'versions':{},                                                        # eyes/brows/mouth generic
          'adds':{'cap':{'gaze':'none','labels':['cap-occluder','cap','anchor'],'occHead':True},  # ink kept crisp; white occluder drawn UNDER the features (head only)
                  'l-hair':{'gaze':'none','labels':['l-hair-ocluder','l-hair'],'occHead':True},   # hair, white occluder UNDER the features (head only)
@@ -151,6 +154,10 @@ def occ_front(full):                                      # occluder(white) behi
 out={'adds':{}, 'versions':{}}
 if cfg.get('hide'): out['hide']=cfg['hide']               # base face slots this modifier hides (faded by level)
 for name,spec in cfg['adds'].items():
+    if isinstance(spec,dict) and spec.get('stack'):       # ordered [label, fill] parts, raw geometry, drawn back-to-front (e.g. white cap base + black detail)
+        a={'gaze':spec['gaze'], 'c':centre([lb for lb,_ in spec['stack']]),
+           'paths':[{'d':x['d'],'tf':x['tf'],'fill':fill,'rule':x['rule']} for lb,fill in spec['stack'] for x in part_full(lb)]}
+        out['adds'][name]=a; continue
     if isinstance(spec,dict) and spec.get('mirror'):      # this add = another add mirrored across the head centre (done at runtime)
         m={'gaze':spec['gaze'], 'mirror':spec['mirror']}
         if 'clip' in spec: m['clip']=spec['clip']
@@ -163,7 +170,7 @@ for name,spec in cfg['adds'].items():
     if not part_ds(src): print('  (missing add:',name,')'); continue
     a={'c':centre(src),'gaze':(spec['gaze'] if isinstance(spec,dict) else spec)}
     full=part_full(src)
-    if any(is_white(x['fill']) for x in full):            # occluder(white)+front add: keep both, white behind, ink on top
+    if (isinstance(spec,dict) and spec.get('raw')) or any(is_white(x['fill']) for x in full):  # keep raw geometry (occluder+front, or a detailed solid like the police cap)
         a['paths']=occ_front(full)
     else:
         a['d']=trace_wl(src)                              # plain add: one smooth ink outline
