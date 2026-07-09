@@ -75,14 +75,26 @@ function createRig(svg, T, mods){
   for(const mn in MODS){ const m=MODS[mn]; if(!m.adds) continue;
     const overG=mkG('rig-mod-'+mn); head.appendChild(overG);                 // adds ON TOP of the face
     const underG=mkG('rig-mod-'+mn+'-under'); head.insertBefore(underG, head.children[1]||null);  // `below` adds go under the features (occlude head, keep brows)
+    const bodyG=mkG('rig-mod-'+mn+'-body'); body.insertBefore(bodyG, head);  // `body` adds ride the torso/neck (behind the head), not the head turn
     let mouthC=null;                                          // clown mouth centre — the lipstick grows from a point here
     if(m.versions&&m.versions.mouth){ const v=Object.values(m.versions.mouth)[0];
       mouthC=[v.reduce((s,p)=>s+p[0],0)/v.length, v.reduce((s,p)=>s+p[1],0)/v.length]; }
+    const addPath=(par,sp)=>{ const pp=document.createElementNS(NS,'path');   // one occluder/front sub-path, kept as-is
+      pp.setAttribute('fill',sp.fill); if(sp.rule)pp.setAttribute('fill-rule',sp.rule); if(sp.tf)pp.setAttribute('transform',sp.tf); pp.setAttribute('d',sp.d); par.appendChild(pp); };
     const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
-      const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g'), pth=document.createElementNS(NS,'path');
-      pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); rg.id='rig-mod-'+mn+'-'+lb; zg.appendChild(pth); rg.appendChild(zg); (a.below?underG:overG).appendChild(rg);
+      const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g');
+      let beads=null, cx=0;
+      if(a.beads){                                              // necklace: each bead its own group so it can ride a deforming curve
+        beads=a.beads.map(b=>{ const g=document.createElementNS(NS,'g'); b.paths.forEach(sp=>addPath(g,sp)); zg.appendChild(g); return {g, c:b.c}; });
+        const x0=beads[0].c[0], x1=beads[beads.length-1].c[0], y0=beads[0].c[1], y1=beads[beads.length-1].c[1];
+        cx=(x0+x1)/2; beads.forEach(b=>{ const t=(x1-x0)?(b.c[0]-x0)/(x1-x0):0; b.sag=b.c[1]-(y0+t*(y1-y0)); });  // sag = drop below the end-to-end chord
+      }
+      else if(a.paths){ a.paths.forEach(sp=>addPath(zg,sp)); }
+      else { const pth=document.createElementNS(NS,'path'); pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); }
+      rg.id='rig-mod-'+mn+'-'+lb; rg.appendChild(zg);
+      (a.gaze==='body'?bodyG : a.below?underG:overG).appendChild(rg);
       return {rg, zg, c:a.c, zc:(lb==='lipstick'&&mouthC)?mouthC:a.c, gaze:a.gaze||'eye', dy:a.dy||0, z:a.z||0,   // zc = zoom pivot; dy = vertical nudge; z = plane depth
-              base:a.base, tip:a.tip,                                    // tube-trunk bridge anchors (head end / muzzle end)
+              base:a.base, tip:a.tip, beads, cx,                        // tube-trunk bridge anchors; necklace bead groups + curve centre
               a: lb==='lipstick' ? MOUTH_MORPH_END : (labels.length>1? i/(labels.length-1)*0.5 : 0) }; });   // lipstick waits for the mouth morph
   }
 
@@ -125,11 +137,13 @@ function createRig(svg, T, mods){
               constrainEye:0, constrainMouth:1,      // 0=free swing to edge, 1=sphere-constrained
               browDrop:3, breathScale:0.02, torsoExpand:0.14, breathBob:3, lean:6,
               snoutZ:190,                            // how far the horse muzzle plate sticks out (parallax depth)
+              earClip:0.3,                            // gazeX past which an earring on the receding side hard-disappears
+              neckBreath:0.22,                        // necklace: how much the bead curve stretches wide / sags with the breath
               grab:{ surprise:{ mouth:1, eye:1, brow:0 },
                      thoughtful:{ mouth:1, eye:0.5, brow:1 },
                      confused:{ mouth:1, eye:0.5, brow:1 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
@@ -141,12 +155,13 @@ function createRig(svg, T, mods){
     // gaze/head-turn: reproject each face feature on the head sphere (translate + foreshorten)
     const yaw=clamp(p.gazeX,-1,1)*cfg.gazeYaw*Math.PI/180, pitch=clamp(p.gazeY,-1,1)*cfg.gazePitch*Math.PI/180;
     // k = latitude constraint: 0 = free swing (reaches silhouette), 1 = true sphere (stays inside at its height)
-    const spherePt=(bx,by,dip,k)=>{                     // where a point on the head sphere lands (centre only)
+    const spherePt=(bx,by,dip,k,ya,pi)=>{               // where a point on the head sphere lands (centre only)
+      if(ya===undefined)ya=yaw; if(pi===undefined)pi=pitch;
       const dx=bx-headC[0], dy=by-headC[1];
       const mu=Math.asin(clamp(dy/Ry,-1,1));
       const hr=1-k*(1-Math.cos(mu));                    // horizontal-circle shrink at rest latitude
       const la=Math.asin(clamp(dx/(Rx*hr),-1,1));
-      const l2=la+yaw, m2=mu+pitch, hr2=1-k*(1-Math.cos(m2));
+      const l2=la+ya, m2=mu+pi, hr2=1-k*(1-Math.cos(m2));
       const nx=headC[0]+Rx*hr2*Math.sin(l2), ny=headC[1]+Ry*Math.sin(m2)+(dip||0);
       const sx=(Math.cos(l2)*hr2)/Math.max(Math.cos(la)*hr,1e-3), sy=Math.cos(m2)/Math.max(Math.cos(mu),1e-3);
       return [nx,ny,sx,sy];
@@ -191,14 +206,23 @@ function createRig(svg, T, mods){
       // L = R(tw) * diag(s,1) * R(-tv)  — rotate axis onto x, stretch x by s, rotate to the new axis
       const a00=cw*s*cv+sw*sv, a01=cw*s*sv-sw*cv, a10=sw*s*cv-cw*sv, a11=sw*s*sv+cw*cv;
       return `translate(${bl[0].toFixed(2)} ${bl[1].toFixed(2)}) matrix(${a00.toFixed(4)} ${a10.toFixed(4)} ${a01.toFixed(4)} ${a11.toFixed(4)} 0 0) translate(${(-b[0]).toFixed(2)} ${(-b[1]).toFixed(2)})`; };
+    // earring: its anchor rides the head sphere like the eyes (coordinate only — translate, no scale/foreshorten);
+    // the earring on the receding side hard-disappears once the head turns past cfg.earClip toward it.
+    const earTf=it=>{ const [nx,ny]=spherePt(it.c[0],it.c[1],it.dy,cfg.constrainEye);
+      return `translate(${(nx-it.c[0]).toFixed(2)} ${(ny-it.c[1]).toFixed(2)})`; };
     for(const mn in MODADD){ const L=clamp(p[mn]||0,0,1);  // raw level: each add gaze-reprojects + zooms in from nothing (staggered, after the morph)
       for(const it of MODADD[mn]){
         it.rg.setAttribute('transform',
           it.gaze==='tube-front' ? planeTf :                                  // muzzle plate: parallax plane at depth snoutZ
           it.gaze==='plane' ? planeAt(it.z, it.dy) :                          // glasses: plane a small distance in front of the face
           it.gaze==='tube-trunk' ? trunkTf(it) :                              // bridge: stretch base(head)->tip(muzzle)
-          (it.gaze==='none'||it.gaze==='tube') ? '' :                         // none = ride the head
+          it.gaze==='ear' ? earTf(it) :                                       // earring: vertical-only, occlusion below
+          (it.gaze==='none'||it.gaze==='tube'||it.gaze==='body') ? '' :       // none = ride the head; body = ride the torso group
           sphere(it.c[0], it.c[1], it.dy, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));
+        if(it.gaze==='ear'){ const side=Math.sign(it.c[0]-headC[0]);                 // this earring's side recedes when gazeX points to it
+          it.rg.style.display = side*clamp(p.gazeX,-1,1) > cfg.earClip ? 'none' : ''; }  // hard clip past the threshold
+        if(it.beads){ const s=1+(p.breath-0.5)*cfg.neckBreath;                       // breathe the curve: inhale spreads it wide & lifts the sag
+          for(const b of it.beads) b.g.setAttribute('transform',`translate(${((s-1)*(b.c[0]-it.cx)).toFixed(2)} ${(b.sag*(1/s-1)).toFixed(2)})`); }
         const z=smooth01((L-it.a)/ZOOM_SPAN);                  // grow from a point (at zc) to full
         it.zg.setAttribute('transform',`translate(${it.zc[0]} ${it.zc[1]}) scale(${z.toFixed(4)}) translate(${-it.zc[0]} ${-it.zc[1]})`); } }
   }

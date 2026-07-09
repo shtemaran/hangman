@@ -29,6 +29,10 @@ CONFIG={
                  'crown':'none','crown-jewels':'none','crown-pearls':'none',    # crown rides the head (no gaze reproject)
                  'crown-background-left':'none','crown-background-right':'none',
                  'l-mustache':'mouth','r-mustache':'mouth'}},
+ 'girl':{'versions':{'l-eye':'eye-l','r-eye':'eye-r'},                            # lashed eyes; brows/mouth stay generic
+         'adds':{'l-earring':{'gaze':'ear','labels':['l-earring','l-earring-top']},    # stud + bead: vertical-only, occlude when its side turns away
+                 'r-earring':{'gaze':'ear','labels':['r-earring','r-earring-top']},
+                 'necklace':{'gaze':'body','beads':['neckless-1','neckless-2','neckless-3','neckless-4','neckless-5','neckless-6','neckless-7']}}},  # beads ride a curve, squash/stretch with breath; on the torso
  'nerd':{'versions':{}, 'eyefx':['l-eye','r-eye'],                               # brows/mouth generic; eyes shrink+shift-on-X (lens refraction)
          'adds':{'glasses':{'gaze':'plane','z':135,'dy':-16}}},                  # glasses on a plane just in front of the head sphere (Rx~123), nudged up
  'horse':{'versions':{}, 'hide':['mouth'],                                       # eyes/brows generic; base mouth hidden (the horse mouth rides the snout)
@@ -56,11 +60,29 @@ def chain_tf(el):
         cur=parent.get(cur)
     return ' '.join(reversed(tfs))                        # root-most first
 def part_paths(label):                                    # [(full transform chain, d)] per path — chain from the PATH leaf,
-    el=find_part(label)                                   # since a path can carry its own transform (e.g. an Inkscape reparent bake)
-    if el is None: return []
-    ps=[el] if el.tag.split('}')[-1]=='path' else list(el.iter(SVGNS+'path'))
-    return [(chain_tf(p), p.get('d')) for p in ps if p.get('d')]
+    labels=label if isinstance(label,(list,tuple)) else [label]   # accept several source labels (merge them into one add)
+    out=[]
+    for lb in labels:
+        el=find_part(lb)                                  # a path can carry its own transform (e.g. an Inkscape reparent bake)
+        if el is None: continue
+        ps=[el] if el.tag.split('}')[-1]=='path' else list(el.iter(SVGNS+'path'))
+        out+=[(chain_tf(p), p.get('d')) for p in ps if p.get('d')]
+    return out
 def part_ds(label): return [d for _,d in part_paths(label)]
+def eff_fill(p):                                          # style fill wins over the fill attribute
+    m=re.search(r'fill:\s*([^;]+)', p.get('style') or '')
+    return (m.group(1).strip() if m else (p.get('fill') or '#000000')).lower()
+def is_white(c): return c in ('#ffffff','#fff','white')
+def part_full(label):                                     # raw paths kept as-is (transform+fill+rule), for occluder/front adds
+    labels=label if isinstance(label,(list,tuple)) else [label]
+    out=[]
+    for lb in labels:
+        el=find_part(lb)
+        if el is None: continue
+        ps=[el] if el.tag.split('}')[-1]=='path' else list(el.iter(SVGNS+'path'))
+        for p in ps:
+            if p.get('d'): out.append({'tf':chain_tf(p),'d':p.get('d'),'fill':eff_fill(p),'rule':p.get('fill-rule') or 'evenodd'})
+    return out
 def mask_of(label, W):
     H=int(round(W*VB[3]/VB[2]))
     inner=''.join(f'<g transform="{tf}"><path fill="#000" d="{d}"/></g>' for tf,d in part_paths(label))
@@ -116,21 +138,35 @@ def correspond(A,B):
             if best is None or e<best[0]: best=(e,fl,r)
     _,fl,r=best; return np.roll(B[::fl],r,0)
 
+def occ_front(full):                                      # occluder(white) behind, ink on top — keep both, exact geometry
+    occ=[x for x in full if is_white(x['fill'])]; front=[x for x in full if not is_white(x['fill'])]
+    return [{'d':x['d'],'tf':x['tf'],'fill':'#ffffff','rule':x['rule']} for x in occ] \
+         + [{'d':x['d'],'tf':x['tf'],'fill':'#081C1A','rule':x['rule']} for x in front]
+
 out={'adds':{}, 'versions':{}}
 if cfg.get('hide'): out['hide']=cfg['hide']               # base face slots this modifier hides (faded by level)
-for lb,spec in cfg['adds'].items():
-    if not part_ds(lb): print('  (missing add:',lb,')'); continue
-    a={'d':trace_wl(lb),'c':centre(lb),'gaze':(spec['gaze'] if isinstance(spec,dict) else spec)}
+for name,spec in cfg['adds'].items():
+    if isinstance(spec,dict) and spec.get('beads'):       # per-bead add (necklace): each bead individually placeable
+        a={'gaze':spec['gaze'], 'beads':[{'c':centre(lb),'paths':occ_front(part_full(lb))} for lb in spec['beads']]}
+        a['c']=centre(spec['beads']); out['adds'][name]=a; continue
+    src=spec['labels'] if isinstance(spec,dict) and spec.get('labels') else name   # one add can merge several traced labels
+    if not part_ds(src): print('  (missing add:',name,')'); continue
+    a={'c':centre(src),'gaze':(spec['gaze'] if isinstance(spec,dict) else spec)}
+    full=part_full(src)
+    if any(is_white(x['fill']) for x in full):            # occluder(white)+front add: keep both, white behind, ink on top
+        a['paths']=occ_front(full)
+    else:
+        a['d']=trace_wl(src)                              # plain add: one smooth ink outline
     if isinstance(spec,dict):
         if spec.get('fill'): a['fill']=spec['fill']
         if spec.get('below'): a['below']=True
         if spec.get('dy'): a['dy']=spec['dy']             # vertical nudge (into the gaze reproject dip)
         if spec.get('z'): a['z']=spec['z']                # plane depth in front of the face (gaze='plane')
     if a['gaze']=='tube-trunk':                           # bridge head<->muzzle: base = end nearer head, tip = end nearer muzzle
-        e0,e1=ends(lb); Cm=np.array(centre('snout-front'))
+        e0,e1=ends(src); Cm=np.array(centre('snout-front'))
         (tip,base)=(e0,e1) if np.hypot(*(e0-Cm))<np.hypot(*(e1-Cm)) else (e1,e0)
         a['base']=[round(base[0],2),round(base[1],2)]; a['tip']=[round(tip[0],2),round(tip[1],2)]
-    out['adds'][lb]=a
+    out['adds'][name]=a
 FTd=json.load(open(FT))
 if cfg.get('eyefx'):                                       # move+shrink the base eyes to sit behind the lenses
     seen=set(); pairs=[]                                                       # pupils, wherever labelled (dedupe by d)
