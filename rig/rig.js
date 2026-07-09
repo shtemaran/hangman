@@ -80,10 +80,16 @@ function createRig(svg, T, mods){
       mouthC=[v.reduce((s,p)=>s+p[0],0)/v.length, v.reduce((s,p)=>s+p[1],0)/v.length]; }
     const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
       const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g'), pth=document.createElementNS(NS,'path');
-      pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); rg.appendChild(zg); (a.below?underG:overG).appendChild(rg);
+      pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); rg.id='rig-mod-'+mn+'-'+lb; zg.appendChild(pth); rg.appendChild(zg); (a.below?underG:overG).appendChild(rg);
       return {rg, zg, c:a.c, zc:(lb==='lipstick'&&mouthC)?mouthC:a.c, gaze:a.gaze||'eye',   // zc = zoom pivot (lipstick grows from the mouth centre)
+              base:a.base, tip:a.tip,                                    // tube-trunk bridge anchors (head end / muzzle end)
               a: lb==='lipstick' ? MOUTH_MORPH_END : (labels.length>1? i/(labels.length-1)*0.5 : 0) }; });   // lipstick waits for the mouth morph
   }
+
+  // base face slots a modifier hides (e.g. the horse hides the base mouth — its own mouth rides the snout)
+  const hideEl={ mouth:mouthP, 'eye-l':eyeG.l, 'eye-r':eyeG.r, 'brow-l':browG.l, 'brow-r':browG.r };
+  const HIDE={};   // slot -> [modifier names that hide it]
+  for(const mn in MODS){ for(const s of (MODS[mn].hide||[])) (HIDE[s]=HIDE[s]||[]).push(mn); }
 
   // ---- pivots from geometry ----
   const bb=el=>el.getBBox();
@@ -114,11 +120,12 @@ function createRig(svg, T, mods){
   const cfg={ headX:22, headY:16, headTilt:7, gazeYaw:38, gazePitch:26,
               constrainEye:0, constrainMouth:1,      // 0=free swing to edge, 1=sphere-constrained
               browDrop:3, breathScale:0.02, torsoExpand:0.14, breathBob:3, lean:6,
+              snoutZ:190,                            // how far the horse muzzle plate sticks out (parallax depth)
               grab:{ surprise:{ mouth:1, eye:1, brow:0 },
                      thoughtful:{ mouth:1, eye:0.5, brow:1 },
                      confused:{ mouth:1, eye:0.5, brow:1 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, horse:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
@@ -130,7 +137,7 @@ function createRig(svg, T, mods){
     // gaze/head-turn: reproject each face feature on the head sphere (translate + foreshorten)
     const yaw=clamp(p.gazeX,-1,1)*cfg.gazeYaw*Math.PI/180, pitch=clamp(p.gazeY,-1,1)*cfg.gazePitch*Math.PI/180;
     // k = latitude constraint: 0 = free swing (reaches silhouette), 1 = true sphere (stays inside at its height)
-    const sphere=(bx,by,dip,k)=>{
+    const spherePt=(bx,by,dip,k)=>{                     // where a point on the head sphere lands (centre only)
       const dx=bx-headC[0], dy=by-headC[1];
       const mu=Math.asin(clamp(dy/Ry,-1,1));
       const hr=1-k*(1-Math.cos(mu));                    // horizontal-circle shrink at rest latitude
@@ -138,8 +145,10 @@ function createRig(svg, T, mods){
       const l2=la+yaw, m2=mu+pitch, hr2=1-k*(1-Math.cos(m2));
       const nx=headC[0]+Rx*hr2*Math.sin(l2), ny=headC[1]+Ry*Math.sin(m2)+(dip||0);
       const sx=(Math.cos(l2)*hr2)/Math.max(Math.cos(la)*hr,1e-3), sy=Math.cos(m2)/Math.max(Math.cos(mu),1e-3);
-      return `translate(${nx} ${ny}) scale(${sx} ${sy}) translate(${-bx} ${-by})`;
+      return [nx,ny,sx,sy];
     };
+    const sphere=(bx,by,dip,k)=>{ const [nx,ny,sx,sy]=spherePt(bx,by,dip,k);
+      return `translate(${nx} ${ny}) scale(${sx} ${sy}) translate(${-bx} ${-by})`; };
     X(eyeG.l, sphere(eyeBase.l[0],eyeBase.l[1],0,cfg.constrainEye));
     X(eyeG.r, sphere(eyeBase.r[0],eyeBase.r[1],0,cfg.constrainEye));
     X(mouthP, sphere(mouthBase[0],mouthBase[1],0,cfg.constrainMouth));
@@ -152,9 +161,31 @@ function createRig(svg, T, mods){
     const tsx=1+(p.breath-0.5)*cfg.torsoExpand;          // torso: expand horizontally with the inhale
     $('win-torso')&&X($('win-torso'), `translate(${torsoC[0]} ${torsoC[1]}) scale(${tsx} 1) translate(${-torsoC[0]} ${-torsoC[1]})`);
     for(const n in arms) arms[n].style.display=(p.hands===n)?'':'none';   // hand pose swap
+    for(const s in HIDE){ const el=hideEl[s]; if(!el) continue;            // fade out base slots a modifier replaces
+      let vis=1; for(const mn of HIDE[s]) vis*=1-clamp(p[mn]||0,0,1); el.style.opacity=vis; }
+    // horse muzzle: a rigid plate at depth snoutZ sticking out of the head, rotating WITH the head
+    // (parallax — it swings further than the head surface). One affine, applied to every 'tube-front' part.
+    const Z=cfg.snoutZ, cY=Math.cos(yaw), sY=Math.sin(yaw), cP=Math.cos(pitch), sP=Math.sin(pitch);
+    const plane=(x,y)=>{ const dx=x-headC[0], dy=y-headC[1];             // where a muzzle-plate point lands
+      return [headC[0]+Z*sY + cY*dx, headC[1]+Z*cY*sP + (-sY*sP)*dx + cP*dy]; };
+    const planeTf=`translate(${(headC[0]+Z*sY).toFixed(2)} ${(headC[1]+Z*cY*sP).toFixed(2)}) matrix(${cY.toFixed(4)} ${(-sY*sP).toFixed(4)} 0 ${cP.toFixed(4)} 0 0) translate(${(-headC[0]).toFixed(2)} ${(-headC[1]).toFixed(2)})`;
+    // trunk bridge: base rides the head sphere (like the mouth), tip follows the muzzle plate; stretch/
+    // rotate between the two live points (scale along the axis, keep perpendicular width) — solid join.
+    const trunkTf=it=>{ const b=it.base, r=it.tip; if(!b||!r) return '';
+      const bl=spherePt(b[0],b[1],0,cfg.constrainMouth), t=plane(r[0],r[1]);   // live base / live tip
+      const vx=r[0]-b[0], vy=r[1]-b[1], wx=t[0]-bl[0], wy=t[1]-bl[1];
+      const tv=Math.atan2(vy,vx), tw=Math.atan2(wy,wx), s=Math.hypot(wx,wy)/Math.max(Math.hypot(vx,vy),1e-3);
+      const cv=Math.cos(tv), sv=Math.sin(tv), cw=Math.cos(tw), sw=Math.sin(tw);
+      // L = R(tw) * diag(s,1) * R(-tv)  — rotate axis onto x, stretch x by s, rotate to the new axis
+      const a00=cw*s*cv+sw*sv, a01=cw*s*sv-sw*cv, a10=sw*s*cv-cw*sv, a11=sw*s*sv+cw*cv;
+      return `translate(${bl[0].toFixed(2)} ${bl[1].toFixed(2)}) matrix(${a00.toFixed(4)} ${a10.toFixed(4)} ${a01.toFixed(4)} ${a11.toFixed(4)} 0 0) translate(${(-b[0]).toFixed(2)} ${(-b[1]).toFixed(2)})`; };
     for(const mn in MODADD){ const L=clamp(p[mn]||0,0,1);  // raw level: each add gaze-reprojects + zooms in from nothing (staggered, after the morph)
       for(const it of MODADD[mn]){
-        it.rg.setAttribute('transform', (it.gaze==='none'||it.gaze==='tube') ? '' : sphere(it.c[0], it.c[1], 0, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));  // none/tube = ride the head (tube = TODO 3D reproject)
+        it.rg.setAttribute('transform',
+          it.gaze==='tube-front' ? planeTf :                                  // muzzle plate: parallax plane at depth Z
+          it.gaze==='tube-trunk' ? trunkTf(it) :                              // bridge: stretch base(head)->tip(muzzle)
+          (it.gaze==='none'||it.gaze==='tube') ? '' :                         // none = ride the head
+          sphere(it.c[0], it.c[1], 0, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));
         const z=smooth01((L-it.a)/ZOOM_SPAN);                  // grow from a point (at zc) to full
         it.zg.setAttribute('transform',`translate(${it.zc[0]} ${it.zc[1]}) scale(${z.toFixed(4)}) translate(${-it.zc[0]} ${-it.zc[1]})`); } }
   }

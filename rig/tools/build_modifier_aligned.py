@@ -29,10 +29,11 @@ CONFIG={
                  'crown':'none','crown-jewels':'none','crown-pearls':'none',    # crown rides the head (no gaze reproject)
                  'crown-background-left':'none','crown-background-right':'none',
                  'l-mustache':'mouth','r-mustache':'mouth'}},
- 'horse':{'versions':{},                                                        # eyes/brows/mouth stay generic; the horse mouth rides the snout as an add
+ 'horse':{'versions':{}, 'hide':['mouth'],                                       # eyes/brows generic; base mouth hidden (the horse mouth rides the snout)
           'adds':{'l-ear':'none','r-ear':'none','forelock':'none','hair':'none',  # ride the head
-                  'snout-trunk':'tube','snout-front':'tube','l-nostril':'tube',    # the protruding muzzle -> 3D-tube gaze (placeholder for now)
-                  'r-nostril':'tube','mouth':'tube'}},
+                  'snout-front':'tube-front','l-nostril':'tube-front',             # muzzle plate at depth Z (parallax)
+                  'r-nostril':'tube-front','mouth':'tube-front',
+                  'snout-trunk':'tube-trunk'}},                                    # bridge head<->muzzle (stretch)
 }
 cfg=CONFIG[MOD]
 
@@ -83,6 +84,11 @@ def trace_wl(label):                                      # all contours -> smoo
 def centre(label):
     m,W,H=mask_of(label,700); ys,xs=np.where(m)
     return [round(VB[0]+(xs.min()+xs.max())/2/W*VB[2],2), round(VB[1]+(ys.min()+ys.max())/2/H*VB[3],2)]
+def ends(label):                                          # the two tips of an elongated shape (principal axis)
+    m,W,H=mask_of(label,700); ys,xs=np.where(m)
+    P=np.stack([VB[0]+xs/W*VB[2], VB[1]+ys/H*VB[3]],1)    # ink points, VB coords
+    Pc=P-P.mean(0); axis=np.linalg.svd(Pc,full_matrices=False)[2][0]; t=Pc@axis
+    return P[t<=np.percentile(t,5)].mean(0), P[t>=np.percentile(t,95)].mean(0)   # robust end centroids
 def outline(label, merge=0):
     m,W,H=mask_of(label,800)
     if merge: m=ndimage.binary_dilation(m,iterations=merge)
@@ -102,12 +108,17 @@ def correspond(A,B):
     _,fl,r=best; return np.roll(B[::fl],r,0)
 
 out={'adds':{}, 'versions':{}}
+if cfg.get('hide'): out['hide']=cfg['hide']               # base face slots this modifier hides (faded by level)
 for lb,spec in cfg['adds'].items():
     if not part_ds(lb): print('  (missing add:',lb,')'); continue
     a={'d':trace_wl(lb),'c':centre(lb),'gaze':(spec['gaze'] if isinstance(spec,dict) else spec)}
     if isinstance(spec,dict):
         if spec.get('fill'): a['fill']=spec['fill']
         if spec.get('below'): a['below']=True
+    if a['gaze']=='tube-trunk':                           # bridge head<->muzzle: base = end nearer head, tip = end nearer muzzle
+        e0,e1=ends(lb); Cm=np.array(centre('snout-front'))
+        (tip,base)=(e0,e1) if np.hypot(*(e0-Cm))<np.hypot(*(e1-Cm)) else (e1,e0)
+        a['base']=[round(base[0],2),round(base[1],2)]; a['tip']=[round(tip[0],2),round(tip[1],2)]
     out['adds'][lb]=a
 FTd=json.load(open(FT))
 for lb,slot in cfg['versions'].items():
