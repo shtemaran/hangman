@@ -1,4 +1,4 @@
-const CACHE = 'hangman-pwa-v27';
+const CACHE = 'hangman-pwa-v28';
 
 const ASSETS = [
   './',
@@ -17,8 +17,13 @@ const ASSETS = [
   'assets/marduk_semantic.svg',
   'rig/rig.js',
   'rig/cage.js',
+  'rig/compat.js',
+  'rig/suggest.js',
   'rig/character.js',
   'rig/face_targets.json',
+  'rig/modifiers.json',
+  'rig/tags.json',
+  'rig/compatibility.json',
   'icons/icon-192.png',
   'icons/icon-512.png',
 ];

@@ -120,6 +120,15 @@ function castKeyState() {
   return { used, wrong, free };
 }
 
+// Stable per-word seed from the answer (FNV-1a). Sent as a number, never the
+// answer itself, so the character choice is repeatable for a given word without
+// leaking the word to the TV.
+function wordSeed(a) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < a.length; i++) { h ^= a.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
 function castSnapshot(phase) {
   const ks = castKeyState();
   return {
@@ -132,6 +141,8 @@ function castSnapshot(phase) {
     used: ks.used,
     wrong: ks.wrong,
     free: ks.free,
+    tags: state.current ? (state.current.tags || []) : [],
+    seed: state.current ? wordSeed(state.current.a) : 0,
   };
 }
 

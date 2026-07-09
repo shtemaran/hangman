@@ -15,8 +15,32 @@ function createCharacter(host) {
   let mounted = false, mounting = false;
   let running = false;                  // whether idle life should be on
   let pendingStep = 0;                  // step to apply once the rig is mounted
+  let suggest = null;                   // tag -> character-set picker (once mounted)
+  let lastSeed = null, pendingTags = [], pendingSeed = 0;
+  const ALL_MODS = ['clown', 'king', 'nerd', 'girl', 'sailor', 'police', 'clock'];
+  const modTarget = {};                 // modifier -> target level (0/1); fades toward it
+  let modRaf = null;
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // A word's theme tags pick a compatible SET of modifiers (repeatable per word
+  // via the seed). Fade the chosen ones in and the rest out.
+  function applyCharacter(tags, seed) {
+    if (!suggest) return;
+    const chosen = new Set(suggest.pick(tags || [], { max: 3, seed }).map((x) => x.mod));
+    for (const m of ALL_MODS) modTarget[m] = chosen.has(m) ? 1 : 0;
+    if (modRaf == null) modRaf = requestAnimationFrame(modLoop);
+  }
+  function modLoop() {
+    if (!rig) { modRaf = null; return; }
+    let moving = false;
+    for (const m of ALL_MODS) {
+      const cur = rig.p[m] || 0, tgt = modTarget[m] || 0;
+      if (Math.abs(tgt - cur) > 0.004) { rig.p[m] = cur + (tgt - cur) * 0.1; moving = true; }
+      else rig.p[m] = tgt;
+    }
+    modRaf = moving ? requestAnimationFrame(modLoop) : null;
+  }
 
   // Expression follows the cage: step 0 = happy (+1) ... last step = sad (-1).
   // On each change snap to the full reaction, then ease a few % back toward
@@ -46,17 +70,22 @@ function createCharacter(host) {
     if (mounted || mounting || !host) return;
     mounting = true;
     try {
-      const [svgText, targets] = await Promise.all([
+      const [svgText, targets, mods, tagsData, compatData] = await Promise.all([
         fetch('assets/marduk_semantic.svg').then((r) => r.text()),
         fetch('rig/face_targets.json').then((r) => r.json()),
+        fetch('rig/modifiers.json').then((r) => r.json()),
+        fetch('rig/tags.json').then((r) => r.json()),
+        fetch('rig/compatibility.json').then((r) => r.json()),
       ]);
       host.innerHTML = svgText;
       const svg = host.querySelector('svg');
-      rig = window.createRig(svg, targets);
+      rig = window.createRig(svg, targets, mods);
       cage = window.createCage(svg, rig, { onStep: reactToStep });
+      suggest = window.makeSuggest(tagsData, window.makeCompat(compatData));
       mounted = true;
       rig.idle(running);
       cage.setStep(pendingStep, false);   // place bars for the current step, no animation
+      applyCharacter(pendingTags, pendingSeed);
     } catch (e) {
       console.warn('character mount failed', e);
     } finally {
@@ -84,6 +113,10 @@ function createCharacter(host) {
     const step = Math.max(0, MAX_LIVES - (typeof s.lives === 'number' ? s.lives : MAX_LIVES));
     if (mounted) cage.setStep(step, true);
     else pendingStep = step;               // mount() will place it when ready
+    if (s.seed !== lastSeed) {              // new word -> re-pick the character set
+      lastSeed = s.seed; pendingSeed = s.seed || 0; pendingTags = s.tags || [];
+      if (mounted) applyCharacter(pendingTags, pendingSeed);
+    }
   }
 
   return { onState, pause, resume };
