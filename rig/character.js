@@ -22,6 +22,10 @@ function createCharacter(host) {
   let modRaf = null;
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  // A 60fps-tuned lerp factor made frame-rate-independent, so smoothing runs at
+  // the same speed on 60/90/120Hz screens.
+  const smoothK = (f, dt) => 1 - Math.pow(1 - f, dt * 60);
+  let exprPrev = 0, modPrev = 0;                 // per-loop last-frame timestamps
 
   // A word's theme tags pick a compatible SET of modifiers (repeatable per word
   // via the seed). Fade the chosen ones in and the rest out.
@@ -29,14 +33,17 @@ function createCharacter(host) {
     if (!suggest) return;
     const chosen = new Set(suggest.pick(tags || [], { max: 3, seed }).map((x) => x.mod));
     for (const m of ALL_MODS) modTarget[m] = chosen.has(m) ? 1 : 0;
-    if (modRaf == null) modRaf = requestAnimationFrame(modLoop);
+    if (modRaf == null) { modPrev = 0; modRaf = requestAnimationFrame(modLoop); }
   }
   function modLoop() {
     if (!rig) { modRaf = null; return; }
+    const now = performance.now();
+    const dt = modPrev ? Math.min((now - modPrev) / 1000, 0.05) : 0; modPrev = now;
+    const k = smoothK(0.1, dt);
     let moving = false;
     for (const m of ALL_MODS) {
       const cur = rig.p[m] || 0, tgt = modTarget[m] || 0;
-      if (Math.abs(tgt - cur) > 0.004) { rig.p[m] = cur + (tgt - cur) * 0.1; moving = true; }
+      if (Math.abs(tgt - cur) > 0.004) { rig.p[m] = cur + (tgt - cur) * k; moving = true; }
       else rig.p[m] = tgt;
     }
     modRaf = moving ? requestAnimationFrame(modLoop) : null;
@@ -52,16 +59,18 @@ function createCharacter(host) {
     const now = performance.now();
     relaxStart = now + 400;                                // hold a beat, then relax
     relaxEnd = relaxStart + (1500 + Math.random() * 1500);
-    if (exprRaf == null) exprRaf = requestAnimationFrame(exprLoop);
+    if (exprRaf == null) { exprPrev = 0; exprRaf = requestAnimationFrame(exprLoop); }
   }
   function exprLoop() {
     if (!rig) { exprRaf = null; return; }
-    const now = performance.now(); let target = reactT;
+    const now = performance.now();
+    const dt = exprPrev ? Math.min((now - exprPrev) / 1000, 0.05) : 0; exprPrev = now;
+    let target = reactT;
     if (now >= relaxStart) {
       const u = clamp((now - relaxStart) / (relaxEnd - relaxStart), 0, 1);
       target = reactT + (relaxT - reactT) * (u * u * (3 - 2 * u));   // smoothstep relax
     }
-    rig.p.expr += (target - rig.p.expr) * 0.12;
+    rig.p.expr += (target - rig.p.expr) * smoothK(0.12, dt);
     if (now < relaxEnd || Math.abs(target - rig.p.expr) > 0.002) exprRaf = requestAnimationFrame(exprLoop);
     else { rig.p.expr = target; exprRaf = null; }
   }

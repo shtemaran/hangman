@@ -311,18 +311,22 @@ function createRig(svg, T, mods){
   function wink(side='l',D=260){ const key='eyeOpen'+side.toUpperCase(); drive(D,k=>{p[key]=clamp(easeShut(k),0,1);}); }
 
   // ---- idle behaviour ----
-  let idleOn=false, tBlink=0, phase=Math.random()*6, gT=[0,0], tGaze=0, focusT=null, focusUntil=0;
+  let idleOn=false, tBlink=0, phase=Math.random()*6, gT=[0,0], tGaze=0, focusT=null, focusUntil=0, tPrev=0;
   (function idleLoop(now){
+    const dt = tPrev ? Math.min((now-tPrev)/1000, 0.05) : 0;    // seconds since last frame (clamped for tab wakeups)
+    tPrev = now;
+    const smooth = f => 1 - Math.pow(1-f, dt*60);              // a 60fps-tuned lerp factor, made frame-rate-independent
     const focusing = focusT && now<focusUntil;                 // a lookAt() glance holds the gaze
     if(idleOn){
-      phase+=1/60; p.breath=0.5+0.45*Math.sin(phase*2*Math.PI/3.6);
+      phase+=dt; p.breath=0.5+0.45*Math.sin(phase*2*Math.PI/3.6);   // breath by real time, not per frame
       if(now>tBlink){ blink(); if(Math.random()<0.22) setTimeout(blink,240); tBlink=now+2000+Math.random()*4000; }
       if(now>tGaze && !focusing){ gT=[(Math.random()*2-1)*0.7,(Math.random()*2-1)*0.5]; tGaze=now+1400+Math.random()*3000; }
     }
     if(idleOn || focusing){
       const tgt = focusing ? focusT : gT, g = focusing ? 0.20 : 0.06;   // snap toward a focus, drift in idle
-      p.gazeX+=(tgt[0]-p.gazeX)*g; p.gazeY+=(tgt[1]-p.gazeY)*g;
-      p.headX+=(tgt[0]*0.35-p.headX)*(g*0.5); p.headY+=(tgt[1]*0.3-p.headY)*(g*0.5);
+      const k = smooth(g), kh = smooth(g*0.5);
+      p.gazeX+=(tgt[0]-p.gazeX)*k; p.gazeY+=(tgt[1]-p.gazeY)*k;
+      p.headX+=(tgt[0]*0.35-p.headX)*kh; p.headY+=(tgt[1]*0.3-p.headY)*kh;
     }
     if(focusT && now>=focusUntil) focusT=null;                 // glance over -> idle wander resumes
     requestAnimationFrame(idleLoop);
