@@ -6,5 +6,6 @@
  "girl":   ["girl","woman","lady","jewelry","earring","necklace","fancy","fashion","beauty","elegant","pretty","dress"],
  "sailor": ["sailor","sea","ocean","ship","boat","navy","captain","anchor","water","wave","voyage","marine","port","fish"],
  "police": ["police","cop","law","officer","badge","arrest","crime","security","guard","patrol","justice","uniform","siren"],
- "executioner": ["executioner","hangman","hood","death","dark","scary","ghost","fear","shadow","mask","doom","grim","spooky","gallows","axe","punishment","night"]
+ "executioner": ["executioner","hangman","hood","death","dark","scary","ghost","fear","shadow","mask","doom","grim","spooky","gallows","axe","punishment","night"],
+ "farmer": ["farmer","farm","field","crop","harvest","wheat","straw","hay","barn","tractor","garden","plant","seed","grow","country","rural","hat","scarecrow"]
 }
