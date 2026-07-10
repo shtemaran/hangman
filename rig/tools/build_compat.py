@@ -25,7 +25,9 @@ GRAB = {
 EMOTIONS = list(GRAB)
 
 # --- manual tweaks (iterate here) ---
-ADD   = []     # e.g. ['clown','nerd']  -> also forbid this combo
+ADD   = [      # the executioner hood covers the whole face -> nothing else on the head/face shows
+  ['executioner','nerd'], ['executioner','girl'],
+]
 ALLOW = [      # drop these auto-forbidden combos:
   ['clown','nerd'], ['girl','nerd'],               # nerd's glasses just sit over whatever eyes are there
   ['king','expression'],                           # mouth is a mustache, but the eyes/brows still carry happy/sad

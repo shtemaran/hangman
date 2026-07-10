@@ -6,6 +6,10 @@
   ],
   [
    "clock",
+   "executioner"
+  ],
+  [
+   "clock",
    "king"
   ],
   [
@@ -15,6 +19,10 @@
   [
    "clown",
    "confused"
+  ],
+  [
+   "clown",
+   "executioner"
   ],
   [
    "clown",
@@ -34,6 +42,34 @@
   ],
   [
    "clown",
+   "thoughtful"
+  ],
+  [
+   "confused",
+   "executioner"
+  ],
+  [
+   "executioner",
+   "girl"
+  ],
+  [
+   "executioner",
+   "king"
+  ],
+  [
+   "executioner",
+   "nerd"
+  ],
+  [
+   "executioner",
+   "police"
+  ],
+  [
+   "executioner",
+   "sailor"
+  ],
+  [
+   "executioner",
    "thoughtful"
   ],
   [
