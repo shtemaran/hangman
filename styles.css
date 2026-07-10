@@ -185,11 +185,23 @@ body.cast-available #game .topbar { padding-right: 48px; }
   height: 100%;
 }
 
+/* Fixed-height slot, vertically centered. #person above is flex:1, so if the
+   clue's height changed with its line count (1 vs 3 lines) it would resize and
+   shift the character between words. Reserving a constant slot (fits the
+   longest ~3-line clues) keeps the character's box -- and the character --
+   perfectly still. */
 #clue {
+  flex: none;
+  box-sizing: border-box;
+  height: 4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  font-size: 22px;
-  padding: 4px 12px;
-  min-height: 1.4em;
+  font-size: 21px;
+  line-height: 1.2;
+  padding: 2px 12px;
+  overflow: hidden;
 }
 
 /* Slot + keyboard colors come straight from the Android drawables:

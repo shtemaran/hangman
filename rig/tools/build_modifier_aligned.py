@@ -22,6 +22,9 @@ FT ='/home/serg/cpp/hangman/rig/face_targets.json'
 MODS='/home/serg/cpp/hangman/rig/modifiers.json'
 N=100
 CONFIG={
+ 'executioner':{'versions':{}, 'hide':['brow-l','brow-r','mouth'], 'maskEyes':True,  # full black hood; brows/mouth gone; eyes shown white on top (still emote)
+          'headMorph':{'c':[409.75,288],'rx':90,'ry':90},                       # shrink the head fully inside the hood silhouette (svg_query'd; hood covers the rest)
+          'adds':{'hood':{'gaze':'none','cover':True}}},                         # solid hood: cuts the whole head by its own silhouette, drawn on top
  'clown':{'versions':{'mouth':'mouth','l-brow':'brow-l','r-brow':'brow-r','l-eye':'eye-l','r-eye':'eye-r'},
           'adds':{'nose':'eye','lipstick':'mouth','l-top-makeup':'eye','l-bottom-makeup':'eye','r-top-makeup':'eye','r-bottom-makeup':'eye'}},
  'king':{'versions':{'mouth':'mouth'},                                          # eyes/brows stay generic -> emotions still work
@@ -165,10 +168,13 @@ def occ_front(full):                                      # occluder(white) behi
 
 out={'adds':{}, 'versions':{}}
 if cfg.get('hide'): out['hide']=cfg['hide']               # base face slots this modifier hides (faded by level)
-if cfg.get('headMorph'):                                  # scale+shift the egg head into the annotated round rim
+if isinstance(cfg.get('headMorph'),dict):                 # manual target (browser-derived), passed straight through
+    out['headMorph']=cfg['headMorph']
+elif cfg.get('headMorph'):                                # scale+shift the egg head into the annotated round rim
     m,W,H=mask_of('head',700); ys,xs=np.where(m)
     x0,x1=VB[0]+xs.min()/W*VB[2],VB[0]+xs.max()/W*VB[2]; y0,y1=VB[1]+ys.min()/H*VB[3],VB[1]+ys.max()/H*VB[3]
     out['headMorph']={'c':[round((x0+x1)/2,2),round((y0+y1)/2,2)],'rx':round((x1-x0)/2,2),'ry':round((y1-y0)/2,2)}
+if cfg.get('maskEyes'): out['maskEyes']=True              # draw the base eyes white on top of the hood (they still emote)
 for name,spec in cfg['adds'].items():
     if isinstance(spec,dict) and spec.get('stack'):       # ordered [label, fill] parts, raw geometry, drawn back-to-front (e.g. white cap base + black detail)
         a={'gaze':spec['gaze'], 'c':centre([lb for lb,_ in spec['stack']]),
@@ -199,6 +205,7 @@ for name,spec in cfg['adds'].items():
         if 'earY' in spec: a['earY']=spec['earY']         # scale the ear's vertical gaze motion (1 = full)
         if spec.get('occHead'): a['occHead']=True         # route the white occluder under the features (occlude the head only)
         if spec.get('fade'): a['fade']=True               # reveal by opacity crossfade instead of zoom-from-nothing
+        if spec.get('cover'): a['cover']=True             # solid shape: cut the head by its OWN silhouette + draw it on top (hood)
     if a['gaze']=='hand':                                 # clock hand: pivot on the centre dot, store its drawn angle + role
         piv=centre('center'); a['pivot']=piv; a['angle']=hand_angle(src,piv); a['role']=spec['role']
     if a['gaze']=='tube-trunk':                           # bridge head<->muzzle: base = end nearer head, tip = end nearer muzzle
