@@ -157,6 +157,9 @@ headMorph:{…} }`. A quick tour of the built-ins:
 - **executioner** — a solid black hood covering the whole head (`cover`), with the
   head morphed to tuck inside it, brows/mouth hidden, and the base eyes drawn white
   on top (`maskEyes`) so they read as eye-holes that still emote.
+- **farmer** — a straw hat (occluder-cut) + a wheat straw in the mouth corner
+  (`stick` gaze: rides the live mouth corner, flips side-opposite the gaze, sways
+  with the breath) with its own occluder that cuts everything but the mouth.
 
 ### `adds` — extra features
 
@@ -174,6 +177,7 @@ head. Value is either a gaze string or `{gaze, …opts}`:
 | `tube-front` | rigid plate at `cfg.snoutZ` sticking out of the head (big parallax) | horse muzzle |
 | `tube-trunk` | stretch-bridge: base rides the sphere, tip follows the muzzle plate | horse snout trunk |
 | `hand` | rotates around a `center` pivot to the **real current time** (`role: 'hour'\|'minute'`; drawn angle measured at build) | clock hands |
+| `stick` | a rigid mouth prop: base tracks the live mouth corner, flips to the side opposite the gaze (sticky ±1), sways with the breath; drawn in front of the face behind the mouth, its `occ` occluder cuts the face-core (all but the mouth) | farmer straw |
 
 Add options (in the `{…}` form):
 

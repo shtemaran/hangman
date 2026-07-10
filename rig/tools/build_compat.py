@@ -54,7 +54,14 @@ def claims(mod):
     if 'mouth' in ver: c['mouth']='lock'
     elif 'mouth' in fac: c['mouth']='fx'
     elif 'mouth' in gazes: c['mouth']='add'          # mustache / lipstick
-    if mod in HEADWEAR or d.get('headMorph'): c['head']=True
+    # headwear = reshapes the head, OR has a HEAD-occluding add: occHead / cover, or a white occluder on a
+    # rigid (gaze 'none') add. (An 'ear' earring or 'body' necklace occluder is NOT headwear.)
+    def hat(a):
+        if not isinstance(a,dict): return False
+        if a.get('occHead') or a.get('cover'): return True
+        white = a.get('fill')=='#ffffff' or any(p.get('fill')=='#ffffff' for p in a.get('paths',[]))
+        return white and (a.get('gaze','eye')=='none')
+    if mod in HEADWEAR or d.get('headMorph') or any(hat(a) for a in adds.values()): c['head']=True
     if 'ear' in gazes: c['ears']=True
     if 'body' in gazes: c['neck']=True
     return c

@@ -25,6 +25,9 @@ CONFIG={
  'executioner':{'versions':{}, 'hide':['brow-l','brow-r','mouth'], 'maskEyes':True,  # full black hood; brows/mouth gone; eyes shown white on top (still emote)
           'headMorph':{'c':[409.75,288],'rx':90,'ry':90},                       # shrink the head fully inside the hood silhouette (svg_query'd; hood covers the rest)
           'adds':{'hood':{'gaze':'none','cover':True}}},                         # solid hood: cuts the whole head by its own silhouette, drawn on top
+ 'farmer':{'versions':{},                                                        # eyes/brows/mouth generic
+          'adds':{'hat':{'gaze':'none','labels':['hat-occluder','hat'],'occHead':True},  # straw hat: white occluder cuts the head crown, ink on top
+                  'mouth-straw':{'gaze':'stick','labels':['mouth-straw','mouth-straw-ocluder']}}},  # wheat stalk (ink) + its own occluder (cuts the face-core, not the mouth)
  'clown':{'versions':{'mouth':'mouth','l-brow':'brow-l','r-brow':'brow-r','l-eye':'eye-l','r-eye':'eye-r'},
           'adds':{'nose':'eye','lipstick':'mouth','l-top-makeup':'eye','l-bottom-makeup':'eye','r-top-makeup':'eye','r-bottom-makeup':'eye'}},
  'king':{'versions':{'mouth':'mouth'},                                          # eyes/brows stay generic -> emotions still work
@@ -101,11 +104,12 @@ def part_full(label):                                     # raw paths kept as-is
         for p in ps:
             if p.get('d'): out.append({'tf':chain_tf(p),'d':p.get('d'),'fill':eff_fill(p),'rule':p.get('fill-rule') or 'evenodd'})
     return out
-def mask_of(label, W):
+def mask_pairs(pairs, W):                                 # rasterize explicit (transform,d) pairs -> bool mask
     H=int(round(W*VB[3]/VB[2]))
-    inner=''.join(f'<g transform="{tf}"><path fill="#000" d="{d}"/></g>' for tf,d in part_paths(label))
+    inner=''.join(f'<g transform="{tf}"><path fill="#000" d="{d}"/></g>' for tf,d in pairs)
     doc=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{VB[0]} {VB[1]} {VB[2]} {VB[3]}" width="{W}" height="{H}">{inner}</svg>'
     return np.array(Image.open(io.BytesIO(cairosvg.svg2png(bytestring=doc.encode(),output_width=W,output_height=H,background_color='white'))).convert('L'))<128, W, H
+def mask_of(label, W): return mask_pairs(part_paths(label), W)
 def px2vb(y,x,W,H): return ((x-1)/W*VB[2]+VB[0], (y-1)/H*VB[3]+VB[1])
 def smooth(pts):
     if len(pts)>1 and np.allclose(pts[0],pts[-1]): pts=pts[:-1]
@@ -117,12 +121,13 @@ def smooth(pts):
         c1=(p1[0]+(p2[0]-p0[0])/6,p1[1]+(p2[1]-p0[1])/6); c2=(p2[0]-(p3[0]-p1[0])/6,p2[1]-(p3[1]-p1[1])/6)
         d+=f'C {c1[0]:.1f},{c1[1]:.1f} {c2[0]:.1f},{c2[1]:.1f} {p2[0]:.1f},{p2[1]:.1f} '
     return d+'Z'
-def trace_wl(label):                                      # all contours -> smooth win-local path 'd'
-    m,W,H=mask_of(label,1000); pad=np.zeros((H+2,W+2),bool); pad[1:-1,1:-1]=m; subs=[]
+def trace_pairs(pairs):                                   # explicit (transform,d) pairs -> smooth win-local 'd'
+    m,W,H=mask_pairs(pairs,1000); pad=np.zeros((H+2,W+2),bool); pad[1:-1,1:-1]=m; subs=[]
     for c in measure.find_contours(pad.astype(float),0.5):
         c=measure.approximate_polygon(c,1.2)
         if len(c)>=3: subs.append(smooth([px2vb(y,x,W,H) for y,x in c]))
     return ' '.join(x for x in subs if x)
+def trace_wl(label): return trace_pairs(part_paths(label))   # all contours -> smooth win-local path 'd'
 def centre(label):
     m,W,H=mask_of(label,700); ys,xs=np.where(m)
     return [round(VB[0]+(xs.min()+xs.max())/2/W*VB[2],2), round(VB[1]+(ys.min()+ys.max())/2/H*VB[3],2)]
@@ -188,6 +193,13 @@ for name,spec in cfg['adds'].items():
     if isinstance(spec,dict) and spec.get('beads'):       # per-bead add (necklace): each bead individually placeable
         a={'gaze':spec['gaze'], 'beads':[{'c':centre(lb),'paths':occ_front(part_full(lb))} for lb in spec['beads']]}
         a['c']=centre(spec['beads']); out['adds'][name]=a; continue
+    if (spec.get('gaze') if isinstance(spec,dict) else spec)=='stick':   # mouth prop (straw): ink + its own occluder, both win-local
+        full=part_full(spec['labels']) if isinstance(spec,dict) and spec.get('labels') else part_full(name)
+        ink=[(x['tf'],x['d']) for x in full if not is_white(x['fill'])]
+        occ=[(x['tf'],x['d']) for x in full if is_white(x['fill'])]
+        cx,cy,_,_=bbox_of(ink); a={'gaze':'stick','c':[round(cx,2),round(cy,2)],'d':trace_pairs(ink)}
+        if occ: a['occ']=trace_pairs(occ)                 # occluder cuts the face-core (everything but the mouth)
+        out['adds'][name]=a; continue
     src=spec['labels'] if isinstance(spec,dict) and spec.get('labels') else name   # one add can merge several traced labels
     if not part_ds(src): print('  (missing add:',name,')'); continue
     a={'c':centre(src),'gaze':(spec['gaze'] if isinstance(spec,dict) else spec)}
