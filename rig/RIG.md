@@ -154,6 +154,9 @@ headMorph:{…} }`. A quick tour of the built-ins:
 - **clock** — turns the head into a real-time clock: `headMorph` (egg→round rim),
   numbers/ticks/hands (real-time `hand` gaze), flat-disc gaze, `facefx` eyes+mouth,
   brows hidden. See *Clock: the flat-disc modifier* below.
+- **executioner** — a solid black hood covering the whole head (`cover`), with the
+  head morphed to tuck inside it, brows/mouth hidden, and the base eyes drawn white
+  on top (`maskEyes`) so they read as eye-holes that still emote.
 
 ### `adds` — extra features
 
@@ -190,6 +193,8 @@ Add options (in the `{…}` form):
   fills (police cap: white base occluder + black line-art).
 - `raw:true` — keep raw geometry (evenodd detail) instead of re-tracing to one outline.
 - `fade:true` — reveal by opacity crossfade instead of the zoom-from-nothing.
+- `cover:true` — a solid shape (no white occluder) that cuts the head by its **own**
+  silhouette and draws on top (executioner hood). Makes the modifier headwear.
 - `beads:[…]` — a per-bead add: each label becomes its own group riding a curve
   fit through the bead centres (chord + per-bead sag), squash/stretched by breath
   (`cfg.neckBreath`). Girl necklace.
@@ -241,8 +246,15 @@ working dial that still emotes. Blink/emotions apply on top.
 ### `headMorph` — reshape the head
 
 `headMorph:{c,rx,ry}` scales + shifts the brush head into a target circle by the
-modifier level (clock: egg head → round rim, a real shape transition, no
-crossfade). The head sphere geometry (`headC/Rx/Ry`) comes from `win-head` only.
+modifier level (clock: egg head → round rim; executioner: head shrunk to tuck
+inside the hood). Per-modifier, so several can coexist. The head sphere geometry
+(`headC/Rx/Ry`) comes from `win-head` only.
+
+### `maskEyes` — white eyes on top
+
+`maskEyes:true` draws the base eyes **white on top of the headwear** (executioner
+hood), mirroring their exact shape/gaze/blink each frame — so they read as glowing
+eye-holes that still emote, while the real eyes underneath are cut away by the hood.
 
 ### Clock: the flat-disc modifier
 
