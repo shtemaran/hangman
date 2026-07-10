@@ -3,7 +3,7 @@
 <title>Marduk rig tuner</title>
 <style>
   body{font-family:system-ui,sans-serif;margin:1rem;display:flex;gap:1.3rem;align-items:flex-start;flex-wrap:wrap}
-  #stage{width:420px;height:362px;border:1px solid #ddd;flex:none}
+  #stage{width:420px;height:362px;border:1px solid #ddd;flex:none;background:#fff;background-size:32px 32px;background-position:0 0,16px 16px}
   #stage svg{width:100%;height:100%}
   .panel{display:flex;flex-direction:column;gap:.35rem;font-size:13px;min-width:250px}
   .panel h4{margin:.6rem 0 .1rem;border-bottom:1px solid #eee}
@@ -36,6 +36,10 @@
     <button data-hands="neutral">neutral</button><button data-hands="thumbsup">thumbs-up</button>
   </div>
   <label><input type="checkbox" id="idle"> idle (procedural life)</label>
+  <div class="row">
+    <label><input type="checkbox" id="texbg"> textured bg (inspect occluders)</label>
+    <input type="color" id="bgcolor" value="#c9bfa8" title="checker colour">
+  </div>
   <button id="reset">reset pose</button>
   <div class="panel" id="ranges"><h4>Ranges (tune, then export)</h4></div>
   <button id="export">export config JSON</button>
@@ -100,6 +104,13 @@ Promise.all([
   document.getElementById('winkr').onclick=()=>rig.wink('r');
   document.querySelectorAll('[data-hands]').forEach(b=>b.onclick=()=>rig.p.hands=b.dataset.hands);
   document.getElementById('idle').onchange=e=>rig.idle(e.target.checked);
+  // textured background to inspect white-occluder leaks (should show NO white patches on any modifier)
+  const stage=document.getElementById('stage'), texbg=document.getElementById('texbg'), bgcolor=document.getElementById('bgcolor');
+  const applyBg=()=>{ const on=texbg.checked, c=bgcolor.value;
+    stage.style.backgroundColor = on ? c : '#fff';
+    stage.style.backgroundImage = on ?
+      `linear-gradient(45deg,#0003 25%,transparent 25%,transparent 75%,#0003 75%),linear-gradient(45deg,#0003 25%,transparent 25%,transparent 75%,#0003 75%)` : ''; };
+  texbg.onchange=applyBg; bgcolor.oninput=applyBg;
   document.getElementById('reset').onclick=()=>{PARAMS.forEach(([k,mn,mx,dv])=>{rig.p[k]=dv;pInputs[k].value=dv;pInputs[k].dispatchEvent(new Event('input'));});};
   document.getElementById('export').onclick=()=>{document.getElementById('out').textContent=JSON.stringify(rig.cfg,null,1);};
   refreshCompat();
