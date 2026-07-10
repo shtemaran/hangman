@@ -92,7 +92,7 @@ function createRig(svg, T, mods){
   // a modifier is "headwear" if any of its adds carries a white occluder — its rigid (none/ear) inks then
   // draw in the top `headwear` layer (above other modifiers' content) and its occluders cut the content.
   const isHeadwear=m=>{ const ad=(MODS[m]&&MODS[m].adds)||{};
-    for(const k in ad){ const a=ad[k]; if(a.fill==='#ffffff') return true; if(a.paths&&a.paths.some(p=>p.fill==='#ffffff')) return true; } return false; };
+    for(const k in ad){ const a=ad[k]; if(a.cover) return true; if(a.fill==='#ffffff') return true; if(a.paths&&a.paths.some(p=>p.fill==='#ffffff')) return true; } return false; };
 
   const MODADD={};   // name -> [{rg,zg, c:[x,y], gaze, a:staggerStart}]  (adds are in win-local face coords)
   for(const mn in MODS){ const m=MODS[mn]; if(!m.adds) continue;
@@ -127,6 +127,8 @@ function createRig(svg, T, mods){
       }
       else if(a.paths){ a.paths.forEach(sp=>put(sp,zg)); }      // occluder+front / stack: white parts cut, ink drawn
       else if(doCut && a.fill==='#ffffff'){ mkCut({d:a.d, fill:'#ffffff', rule:'evenodd'}, cutG); }  // pure white occluder (king crown) -> cut
+      else if(a.cover){ const pth=document.createElementNS(NS,'path'); pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth);  // solid hood: ink on top (wearG)…
+        if(cutG) mkCut({d:a.d, fill:'#081C1A', rule:'evenodd'}, cutG); }        // …and cut the head by its own silhouette (full cover)
       else { const pth=document.createElementNS(NS,'path'); pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); }
       rg.id='rig-mod-'+mn+'-'+lb; rg.appendChild(zg);
       const toWear = modHW && (gz==='none'||gz==='ear');   // headwear ink -> top layer, above other modifiers' content
@@ -149,7 +151,14 @@ function createRig(svg, T, mods){
   const FACEFX={};
   for(const mn in MODS){ const fx=MODS[mn].facefx; if(!fx) continue;
     for(const slot in fx) (FACEFX[slot]=FACEFX[slot]||[]).push({mn, c:fx[slot].c, s:fx[slot].s}); }
-  let headMorph=null; for(const mn in MODS){ if(MODS[mn].headMorph) headMorph={mn, ...MODS[mn].headMorph}; }   // scale/drop the head into the clock rim
+  const HEADMORPH={}; for(const mn in MODS){ if(MODS[mn].headMorph) HEADMORPH[mn]=MODS[mn].headMorph; }   // scale/reshape the head (clock rim / hood dome)
+  // maskEyes: a modifier draws the base eyes WHITE on top of its hood, so they read as glowing eye-holes
+  // and still morph with expression/blink. (The real eyes underneath get cut away by the hood.)
+  const MASKEYES=[]; for(const mn in MODS){ if(MODS[mn].maskEyes) MASKEYES.push(mn); }
+  let maskEyeEls=null;
+  if(MASKEYES.length){ maskEyeEls={};
+    for(const s of ['l','r']){ const g=mkG('rig-maskeye-'+s), e=document.createElementNS(NS,'path');
+      e.setAttribute('fill','#fff'); g.appendChild(e); headwear.appendChild(g); maskEyeEls[s]={g,e}; } }
 
   // ---- pivots from geometry ----
   const bb=el=>el.getBBox();
@@ -187,7 +196,7 @@ function createRig(svg, T, mods){
                      thoughtful:{ mouth:1, eye:0.5, brow:1 },
                      confused:{ mouth:1, eye:0.5, brow:1 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, sailor:0, police:0, clock:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, sailor:0, police:0, clock:0, executioner:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
@@ -227,6 +236,12 @@ function createRig(svg, T, mods){
       const sL=1+L*(best.s-1), cx=cb[0]+L*(best.c[0]-cb[0]), cy=xOnly?cb[1]:cb[1]+L*(best.c[1]-cb[1]);
       return `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${sL.toFixed(4)}) translate(${(-cb[0]).toFixed(2)} ${(-cb[1]).toFixed(2)})`; };
     for(const s of ['l','r']){ const t=fxTf('eye-'+s,eyeBase[s]); t?eyeP[s].setAttribute('transform',t):eyeP[s].removeAttribute('transform'); }
+    if(maskEyeEls){ let L=0; for(const mn of MASKEYES) L=Math.max(L,clamp(p[mn]||0,0,1));   // white eyes on top of the hood: mirror the base eyes exactly
+      for(const s of ['l','r']){ const me=maskEyeEls[s];
+        me.g.setAttribute('transform', eyeG[s].getAttribute('transform')||'');            // same gaze reproject
+        me.e.setAttribute('d', eyeP[s].getAttribute('d')||'');                             // same (emoting/blinking) shape
+        const et=eyeP[s].getAttribute('transform'); et?me.e.setAttribute('transform',et):me.e.removeAttribute('transform');
+        me.g.style.opacity=L; } }
     X(mouthG, sphereF(mouthBase[0],mouthBase[1],0,cfg.constrainMouth));
     { const t=fxTf('mouth',mouthBase); t?mouthP.setAttribute('transform',t):mouthP.removeAttribute('transform'); }
     X(browG.l, sphereF(browBase.l[0],browBase.l[1],(1-clamp(p.eyeOpenL,0,1))*cfg.browDrop,cfg.constrainEye));
@@ -238,9 +253,10 @@ function createRig(svg, T, mods){
     X(body, `rotate(${p.bodyLean*cfg.lean} ${feet[0]} ${feet[1]}) translate(${belly[0]} ${belly[1]}) scale(1 ${bs}) translate(${-belly[0]} ${-belly[1]})`);
     const tsx=1+(p.breath-0.5)*cfg.torsoExpand;          // torso: expand horizontally with the inhale
     $('win-torso')&&X($('win-torso'), `translate(${torsoC[0]} ${torsoC[1]}) scale(${tsx} 1) translate(${-torsoC[0]} ${-torsoC[1]})`);
-    if(winHead&&headMorph){ const L=clamp(p[headMorph.mn]||0,0,1);        // morph the egg head into the round clock rim
-      const sx=1+L*(headMorph.rx/Rx-1), sy=1+L*(headMorph.ry/Ry-1), tx=L*(headMorph.c[0]-headC[0]), ty=L*(headMorph.c[1]-headC[1]);
-      winHead.setAttribute('transform',`translate(${tx.toFixed(2)} ${ty.toFixed(2)}) translate(${headC[0]} ${headC[1]}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-headC[0]} ${-headC[1]})`); }
+    if(winHead){ let hm=null,hmL=0; for(const mn in HEADMORPH){ const l=clamp(p[mn]||0,0,1); if(l>hmL){hmL=l;hm=HEADMORPH[mn];} }  // reshape the head (clock rim / hood dome)
+      if(hm&&hmL>0){ const sx=1+hmL*(hm.rx/Rx-1), sy=1+hmL*(hm.ry/Ry-1), tx=hmL*(hm.c[0]-headC[0]), ty=hmL*(hm.c[1]-headC[1]);
+        winHead.setAttribute('transform',`translate(${tx.toFixed(2)} ${ty.toFixed(2)}) translate(${headC[0]} ${headC[1]}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-headC[0]} ${-headC[1]})`); }
+      else winHead.removeAttribute('transform'); }
     for(const s of ['l','r']){ const list=HIDE['brow-'+s]; const cb=browBase[s];   // eyebrows zoom to nothing when a modifier hides them
       if(!list){ browP[s].removeAttribute('transform'); continue; }
       let v=1; for(const mn of list) v*=1-clamp(p[mn]||0,0,1);
