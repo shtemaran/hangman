@@ -194,10 +194,30 @@ Add options (in the `{…}` form):
   fit through the bead centres (chord + per-bead sag), squash/stretched by breath
   (`cfg.neckBreath`). Girl necklace.
 - **occluder + front** — if a source layer has a white (`fill:#ffffff`) path plus
-  an ink path, both are kept: white drawn behind (hides what's under it), ink on
-  top. Auto-detected; no flattening. Girl jewelry uses this.
+  an ink path, both are kept: the white becomes an occluder, the ink is drawn on
+  top. Auto-detected; no flattening. Girl jewelry / caps use this.
 
 Every add **zooms in from nothing** on reveal, staggered, after the morph.
+
+### Occlusion — cut, don't paint
+
+The character is transparent line-art (no white fills), so painting white to
+hide a line would leave a white patch on a textured game background. Instead the
+rig treats **white occluders as *cuts***: their shapes go (as black) into an SVG
+mask on `rig-head-content`, making the head transparent there so the background
+shows through. Two groups under `rig-head`:
+
+- **`rig-head-content`** *(masked)* — everything occludable: the head shape,
+  face features, and on-face adds (clock numbers/ticks/hands, clown nose, …).
+- **`rig-head-wear`** *(on top, unmasked)* — headwear ink (caps, crowns, ears).
+
+A modifier is **headwear** if any of its adds carries a white occluder. Its rigid
+(`none`/`ear`) inks then draw in `rig-head-wear` (above *other* modifiers'
+content) and its occluders cut the content — so a police cap correctly hides the
+clock's rim **and** numbers/hands beneath it, then draws on top. Cuts ride the
+same transform as their add (caps static, ears follow + clip; a mirrored ear's
+cut is reflected too) and fade in with the reveal. The mask sits on the static
+content group, so the clock's `headMorph` can't drag the cuts out of alignment.
 
 ### `versions` — per-part shape overrides
 
