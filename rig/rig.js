@@ -21,18 +21,22 @@ function createRig(svg, T, mods){
   const rootG=$('win');
   if($('win-bars')) $('win-bars').style.display='none';        // environment, not character
 
-  // ---- hierarchy: win > body > head > {brows, eyes, mouth} ----
+  // ---- hierarchy: win > body > head > {content (masked), headwear (on top)} ----
+  // headContent = the occludable stuff (head shape, face features, on-face adds like clock numbers). A cap/
+  // crown's white occluder CUTS this group (mask), and its ink is drawn ABOVE it in `headwear` (unmasked).
   const body=mkG('rig-body'), head=mkG('rig-head');
+  const headContent=mkG('rig-head-content'), headwear=mkG('rig-head-wear');
+  head.appendChild(headContent); head.appendChild(headwear);
   ['win-eyes-l','win-eyes-r','win-eyes-l-blink','win-eyes-r-blink','win-mouth','win-brows-l','win-brows-r']
     .forEach(id=>{const e=$(id); if(e)e.remove();});
-  head.appendChild($('win-head'));
+  headContent.appendChild($('win-head'));
   const mkFeat=kind=>{ const g=mkG('rig-'+kind), pth=document.createElementNS(NS,'path');
-    pth.setAttribute('fill','#081C1A'); pth.id='rig-'+kind+'-shape'; g.appendChild(pth); head.appendChild(g); return [g,pth]; };
+    pth.setAttribute('fill','#081C1A'); pth.id='rig-'+kind+'-shape'; g.appendChild(pth); headContent.appendChild(g); return [g,pth]; };
   const eyeG={}, eyeP={}, browG={}, browP={};
   for(const s of ['l','r']) [browG[s],browP[s]]=mkFeat('brow-'+s);
   for(const s of ['l','r']) [eyeG[s],eyeP[s]]=mkFeat('eye-'+s);
   const mouthG=mkG('rig-mouth'), mouthP=document.createElementNS(NS,'path'); mouthP.setAttribute('fill','#081C1A'); mouthP.id='rig-mouth-shape';
-  mouthG.appendChild(mouthP); head.appendChild(mouthG);   // group takes the gaze; inner path takes facefx (reposition/resize)
+  mouthG.appendChild(mouthP); headContent.appendChild(mouthG);   // group takes the gaze; inner path takes facefx (reposition/resize)
   $('win-torso')&&body.appendChild($('win-torso'));
   const srcArmR=$('win-hands-r'), srcArmL=$('win-hands-l');   // sources for hand poses (cloned, then removed)
   srcArmR&&srcArmR.remove(); srcArmL&&srcArmL.remove();
@@ -71,11 +75,32 @@ function createRig(svg, T, mods){
   //      each zooming in from nothing as the modifier level rises (staggered, so they pop in one by one).
   const smooth01=u=>{u=clamp(u,0,1); return u*u*(3-2*u);};
   const ZOOM_SPAN=0.5;   // adds zoom over ~half the level, staggered; the lipstick waits for the mouth morph
+  // occlusion mask: painting WHITE over the head breaks on a textured game bg — instead, occluders CUT the
+  // content (black in this mask = transparent there → texture shows through). The mask is on headContent
+  // (static, win-local coords), so a headMorph transform on win-head (clock) doesn't drag the cuts out of
+  // alignment; and the cut removes EVERY occludable thing under a cap (head shape + clock numbers + …).
+  const winHead=$('win-head');
+  const defs=document.createElementNS(NS,'defs'), occMask=document.createElementNS(NS,'mask');
+  occMask.id='rig-occ-mask'; occMask.setAttribute('maskUnits','userSpaceOnUse');
+  const mRect=document.createElementNS(NS,'rect'); mRect.setAttribute('x',-5000); mRect.setAttribute('y',-5000);
+  mRect.setAttribute('width',10000); mRect.setAttribute('height',10000); mRect.setAttribute('fill','#fff');
+  const occCuts=mkG('rig-occ-cuts'); occMask.appendChild(mRect); occMask.appendChild(occCuts);
+  defs.appendChild(occMask); svg.appendChild(defs);
+  headContent.setAttribute('mask','url(#rig-occ-mask)');
+  const mkCut=(sp,par)=>{ const pp=document.createElementNS(NS,'path'); pp.setAttribute('fill','#000');
+    if(sp.rule)pp.setAttribute('fill-rule',sp.rule); if(sp.tf)pp.setAttribute('transform',sp.tf); pp.setAttribute('d',sp.d); par.appendChild(pp); return pp; };
+  // a modifier is "headwear" if any of its adds carries a white occluder — its rigid (none/ear) inks then
+  // draw in the top `headwear` layer (above other modifiers' content) and its occluders cut the content.
+  const isHeadwear=m=>{ const ad=(MODS[m]&&MODS[m].adds)||{};
+    for(const k in ad){ const a=ad[k]; if(a.fill==='#ffffff') return true; if(a.paths&&a.paths.some(p=>p.fill==='#ffffff')) return true; } return false; };
+
   const MODADD={};   // name -> [{rg,zg, c:[x,y], gaze, a:staggerStart}]  (adds are in win-local face coords)
   for(const mn in MODS){ const m=MODS[mn]; if(!m.adds) continue;
-    const overG=mkG('rig-mod-'+mn); head.appendChild(overG);                 // adds ON TOP of the face
-    const underG=mkG('rig-mod-'+mn+'-under'); head.insertBefore(underG, head.children[1]||null);  // `below` adds go under the features (occlude head, keep brows)
-    const bodyG=mkG('rig-mod-'+mn+'-body'); body.insertBefore(bodyG, head);  // `body` adds ride the torso/neck (behind the head), not the head turn
+    const overG=mkG('rig-mod-'+mn); headContent.appendChild(overG);          // on-face adds (masked content, on top of the features)
+    const underG=mkG('rig-mod-'+mn+'-under'); headContent.insertBefore(underG, headContent.children[1]||null);  // below the features (still masked content)
+    const wearG=mkG('rig-mod-'+mn+'-wear'); headwear.appendChild(wearG);      // headwear ink (caps/crown/ears) — above ALL content, unmasked
+    const bodyG=mkG('rig-mod-'+mn+'-body'); body.insertBefore(bodyG, head);   // `body` adds ride the torso/neck (behind the head), not the head turn
+    const modHW=isHeadwear(mn);
     let mouthC=null;                                          // clown mouth centre — the lipstick grows from a point here
     if(m.versions&&m.versions.mouth){ const v=Object.values(m.versions.mouth)[0];
       mouthC=[v.reduce((s,p)=>s+p[0],0)/v.length, v.reduce((s,p)=>s+p[1],0)/v.length]; }
@@ -84,24 +109,29 @@ function createRig(svg, T, mods){
     const labels=Object.keys(m.adds); MODADD[mn]=labels.map((lb,i)=>{ const a=m.adds[lb];
       const rg=document.createElementNS(NS,'g'), zg=document.createElementNS(NS,'g');
       let beads=null, cx=0, refG=null, srcC=null, occZg=null;
+      // white occluders on head-riding adds CUT the head (transparent) instead of painting white; the cut
+      // group rides the SAME transform as the add so it tracks caps/crown/ears. (not body — necklace beads deform.)
+      const gz=a.gaze||'eye', doCut = gz==='none'||gz==='ear';
+      const cutG=doCut?mkG('rig-cut-'+mn+'-'+lb):null; if(cutG) occCuts.appendChild(cutG);
+      const put=(sp,inkTarget)=>{ if(doCut && sp.fill==='#ffffff') mkCut(sp,cutG); else addPath(inkTarget,sp); };
+      let cutRefG=null;
       if(a.mirror){                                             // this add = another add reflected across the head centre (e.g. left ear from right)
         const srcA=m.adds[a.mirror]; srcC=srcA.c;
-        refG=document.createElementNS(NS,'g'); (srcA.paths||[]).forEach(sp=>addPath(refG,sp)); zg.appendChild(refG);
-      }
-      else if(a.occHead && a.paths){                            // occluder(white) UNDER the features (head only) + ink on top — both raw, both zoom
-        occZg=document.createElementNS(NS,'g'); const occRg=document.createElementNS(NS,'g'); occRg.id='rig-mod-'+mn+'-'+lb+'-occ'; occRg.appendChild(occZg); underG.appendChild(occRg);
-        a.paths.forEach(sp=> addPath(sp.fill==='#ffffff'?occZg:zg, sp));
+        refG=document.createElementNS(NS,'g'); if(cutG){ cutRefG=document.createElementNS(NS,'g'); cutG.appendChild(cutRefG); }
+        (srcA.paths||[]).forEach(sp=> sp.fill==='#ffffff'&&cutRefG ? mkCut(sp,cutRefG) : addPath(refG,sp)); zg.appendChild(refG);  // cut reflected via cutRefG, same as the ink via refG
       }
       else if(a.beads){                                         // necklace: each bead its own group so it can ride a deforming curve
         beads=a.beads.map(b=>{ const g=document.createElementNS(NS,'g'); b.paths.forEach(sp=>addPath(g,sp)); zg.appendChild(g); return {g, c:b.c}; });
         const x0=beads[0].c[0], x1=beads[beads.length-1].c[0], y0=beads[0].c[1], y1=beads[beads.length-1].c[1];
         cx=(x0+x1)/2; beads.forEach(b=>{ const t=(x1-x0)?(b.c[0]-x0)/(x1-x0):0; b.sag=b.c[1]-(y0+t*(y1-y0)); });  // sag = drop below the end-to-end chord
       }
-      else if(a.paths){ a.paths.forEach(sp=>addPath(zg,sp)); }
+      else if(a.paths){ a.paths.forEach(sp=>put(sp,zg)); }      // occluder+front / stack: white parts cut, ink drawn
+      else if(doCut && a.fill==='#ffffff'){ mkCut({d:a.d, fill:'#ffffff', rule:'evenodd'}, cutG); }  // pure white occluder (king crown) -> cut
       else { const pth=document.createElementNS(NS,'path'); pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth); }
       rg.id='rig-mod-'+mn+'-'+lb; rg.appendChild(zg);
-      (a.gaze==='body'?bodyG : a.below?underG:overG).appendChild(rg);
-      return {rg, zg, c:a.mirror?null:a.c, zc:a.mirror?null:((lb==='lipstick'&&mouthC)?mouthC:a.c), gaze:a.gaze||'eye', dy:a.dy||0, z:a.z||0,
+      const toWear = modHW && (gz==='none'||gz==='ear');   // headwear ink -> top layer, above other modifiers' content
+      (a.gaze==='body'?bodyG : toWear?wearG : a.below?underG:overG).appendChild(rg);
+      return {rg, zg, cutG, cutRefG, c:a.mirror?null:a.c, zc:a.mirror?null:((lb==='lipstick'&&mouthC)?mouthC:a.c), gaze:a.gaze||'eye', dy:a.dy||0, z:a.z||0,
               base:a.base, tip:a.tip, beads, cx, refG, srcC, mirror:a.mirror||null, clip:(a.clip==null?null:a.clip), earY:(a.earY==null?null:a.earY), occZg,   // tube-trunk; necklace; mirror; ear clip; ear Y-scale; under-features occluder zoom
               pivot:a.pivot, ang:a.angle, role:a.role, fade:a.fade||false,   // clock hand: pivot/angle/role; fade = opacity crossfade reveal
               a: lb==='lipstick' ? MOUTH_MORPH_END : (labels.length>1? i/(labels.length-1)*0.5 : 0) }; });   // lipstick waits for the mouth morph
@@ -119,7 +149,6 @@ function createRig(svg, T, mods){
   const FACEFX={};
   for(const mn in MODS){ const fx=MODS[mn].facefx; if(!fx) continue;
     for(const slot in fx) (FACEFX[slot]=FACEFX[slot]||[]).push({mn, c:fx[slot].c, s:fx[slot].s}); }
-  const winHead=$('win-head');
   let headMorph=null; for(const mn in MODS){ if(MODS[mn].headMorph) headMorph={mn, ...MODS[mn].headMorph}; }   // scale/drop the head into the clock rim
 
   // ---- pivots from geometry ----
@@ -247,20 +276,25 @@ function createRig(svg, T, mods){
     for(const mn in MODADD){ const L=clamp(p[mn]||0,0,1);  // raw level: each add gaze-reprojects + zooms in from nothing (staggered, after the morph)
       for(const it of MODADD[mn]){
         if(it.mirror && !it.c){ it.c=[2*headC[0]-it.srcC[0], it.srcC[1]]; it.zc=it.c;   // reflect the source across the head centre (once)
-          it.refG.setAttribute('transform',`matrix(-1 0 0 1 ${(2*headC[0]).toFixed(2)} 0)`); }
-        it.rg.setAttribute('transform',
+          const rfl=`matrix(-1 0 0 1 ${(2*headC[0]).toFixed(2)} 0)`;
+          it.refG.setAttribute('transform',rfl); if(it.cutRefG) it.cutRefG.setAttribute('transform',rfl); }
+        const tf =
           it.gaze==='tube-front' ? planeTf :                                  // muzzle plate: parallax plane at depth snoutZ
           it.gaze==='plane' ? planeAt(it.z, it.dy) :                          // glasses: plane a small distance in front of the face
           it.gaze==='tube-trunk' ? trunkTf(it) :                              // bridge: stretch base(head)->tip(muzzle)
           it.gaze==='ear' ? earTf(it) :                                       // earring: vertical-only, occlusion below
           it.gaze==='hand' ? handTf(it) :                                     // clock hand: rotate to the real time
           (it.gaze==='none'||it.gaze==='tube'||it.gaze==='body') ? '' :       // none = ride the head; body = ride the torso group
-          sphere(it.c[0], it.c[1], it.dy, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye));
+          sphere(it.c[0], it.c[1], it.dy, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye);
+        it.rg.setAttribute('transform', tf);
+        if(it.cutG) it.cutG.setAttribute('transform', tf);                    // the head-cut tracks the add (caps/crown static, ears follow)
         if(it.gaze==='ear'){ const side=Math.sign(it.c[0]-headC[0]);                 // this ear/earring's side recedes when gazeX points to it
-          it.rg.style.display = side*clamp(p.gazeX,-1,1) > (it.clip==null?cfg.earClip:it.clip) ? 'none' : ''; }  // hard clip past the (per-add) threshold
+          const hidden = side*clamp(p.gazeX,-1,1) > (it.clip==null?cfg.earClip:it.clip);  // hard clip past the (per-add) threshold
+          it.rg.style.display = hidden?'none':''; if(it.cutG) it.cutG.style.display = hidden?'none':''; }
         if(it.beads){ const s=1+(p.breath-0.5)*cfg.neckBreath;                       // breathe the curve: inhale spreads it wide & lifts the sag
           for(const b of it.beads) b.g.setAttribute('transform',`translate(${((s-1)*(b.c[0]-it.cx)).toFixed(2)} ${(b.sag*(1/s-1)).toFixed(2)})`); }
         const z=smooth01((L-it.a)/ZOOM_SPAN);                  // grow from a point (at zc) to full
+        if(it.cutG) it.cutG.style.opacity=z;                   // occluder cut fades in with the reveal (black@z -> head transparent there)
         if(it.fade){ it.rg.style.opacity=z; }                  // reveal by opacity crossfade (e.g. the clock rim)
         else { const zt=`translate(${it.zc[0]} ${it.zc[1]}) scale(${z.toFixed(4)}) translate(${-it.zc[0]} ${-it.zc[1]})`;
           it.zg.setAttribute('transform',zt); if(it.occZg) it.occZg.setAttribute('transform',zt); } } }
