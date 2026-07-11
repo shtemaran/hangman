@@ -32,7 +32,7 @@ function createRig(svg, T, mods){
   headContent.appendChild(faceCore); headContent.appendChild(mouthProps);
   ['win-eyes-l','win-eyes-r','win-eyes-l-blink','win-eyes-r-blink','win-mouth','win-brows-l','win-brows-r']
     .forEach(id=>{const e=$(id); if(e)e.remove();});
-  faceCore.appendChild($('win-head'));
+  const headMaskG=mkG('rig-head-maskg'); faceCore.appendChild(headMaskG); headMaskG.appendChild($('win-head'));  // win-head-only mask: `occHead` occluders (hats) cut just the head shape, keeping brows/eyes
   const mkFeat=kind=>{ const g=mkG('rig-'+kind), pth=document.createElementNS(NS,'path');
     pth.setAttribute('fill','#081C1A'); pth.id='rig-'+kind+'-shape'; g.appendChild(pth); faceCore.appendChild(g); return [g,pth]; };
   const eyeG={}, eyeP={}, browG={}, browP={};
@@ -90,7 +90,11 @@ function createRig(svg, T, mods){
   // alignment; and the cut removes EVERY occludable thing under a cap (head shape + clock numbers + …).
   const winHead=$('win-head');
   const defs=document.createElementNS(NS,'defs'), occMask=document.createElementNS(NS,'mask');
-  occMask.id='rig-occ-mask'; occMask.setAttribute('maskUnits','userSpaceOnUse');
+  // explicit, huge mask REGION (userSpaceOnUse) — else the browser defaults it to ~the bounding box, and a
+  // moving prop at the edge (the straw) slips outside the region and gets clipped. cairosvg ignores this.
+  const setRegion=m=>{ m.setAttribute('maskUnits','userSpaceOnUse'); m.setAttribute('x',-5000); m.setAttribute('y',-5000);
+    m.setAttribute('width',10000); m.setAttribute('height',10000); };
+  occMask.id='rig-occ-mask'; setRegion(occMask);
   const mRect=document.createElementNS(NS,'rect'); mRect.setAttribute('x',-5000); mRect.setAttribute('y',-5000);
   mRect.setAttribute('width',10000); mRect.setAttribute('height',10000); mRect.setAttribute('fill','#fff');
   const occCuts=mkG('rig-occ-cuts'); occMask.appendChild(mRect); occMask.appendChild(occCuts);
@@ -98,10 +102,16 @@ function createRig(svg, T, mods){
   headContent.setAttribute('mask','url(#rig-occ-mask)');
   // a second mask on faceCore (head+eyes+brows only) — a mouth prop (straw) cuts THIS, so it occludes
   // everything except the mouth (which lives above faceCore) and the props/adds in front of it.
-  const strawMask=document.createElementNS(NS,'mask'); strawMask.id='rig-straw-mask'; strawMask.setAttribute('maskUnits','userSpaceOnUse');
+  const strawMask=document.createElementNS(NS,'mask'); strawMask.id='rig-straw-mask'; setRegion(strawMask);
   const sRect=mRect.cloneNode(true); const strawCuts=mkG('rig-straw-cuts');
   strawMask.appendChild(sRect); strawMask.appendChild(strawCuts); occMask.parentNode.appendChild(strawMask);
   faceCore.setAttribute('mask','url(#rig-straw-mask)');
+  // a third mask on win-head only — `occHead` occluders (hat brims / crowns) cut just the HEAD SHAPE, so they
+  // never eat a brow/eye the brim overlaps, nor a mouth prop below (fixes hair-over-brow + straw clipping).
+  const headMask=document.createElementNS(NS,'mask'); headMask.id='rig-head-mask'; setRegion(headMask);
+  const hRect=mRect.cloneNode(true); const headCuts=mkG('rig-head-cuts');
+  headMask.appendChild(hRect); headMask.appendChild(headCuts); occMask.parentNode.appendChild(headMask);
+  headMaskG.setAttribute('mask','url(#rig-head-mask)');
   const mkCut=(sp,par)=>{ const pp=document.createElementNS(NS,'path'); pp.setAttribute('fill','#000');
     if(sp.rule)pp.setAttribute('fill-rule',sp.rule); if(sp.tf)pp.setAttribute('transform',sp.tf); pp.setAttribute('d',sp.d); par.appendChild(pp); return pp; };
   // a modifier is "headwear" if any of its adds carries a white occluder — its rigid (none/ear) inks then
@@ -127,7 +137,7 @@ function createRig(svg, T, mods){
       // white occluders on head-riding adds CUT the head (transparent) instead of painting white; the cut
       // group rides the SAME transform as the add so it tracks caps/crown/ears. (not body — necklace beads deform.)
       const gz=a.gaze||'eye', doCut = gz==='none'||gz==='ear'||(gz==='stick'&&a.occ);
-      const cutParent = gz==='stick' ? strawCuts : occCuts;   // stick props cut the faceCore mask, everything else the head mask
+      const cutParent = gz==='stick' ? strawCuts : a.occHead ? headCuts : occCuts;  // stick→faceCore mask; occHead (hats)→head-only; else full content
       const cutG=doCut?mkG('rig-cut-'+mn+'-'+lb):null; if(cutG) cutParent.appendChild(cutG);
       const put=(sp,inkTarget)=>{ if(doCut && sp.fill==='#ffffff') mkCut(sp,cutG); else addPath(inkTarget,sp); };
       let cutRefG=null;
