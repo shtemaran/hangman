@@ -25,6 +25,9 @@ CONFIG={
  'executioner':{'versions':{}, 'hide':['brow-l','brow-r','mouth'], 'maskEyes':True,  # full black hood; brows/mouth gone; eyes shown white on top (still emote)
           'headMorph':{'c':[409.75,288],'rx':90,'ry':90},                       # shrink the head fully inside the hood silhouette (svg_query'd; hood covers the rest)
           'adds':{'hood':{'gaze':'none','cover':True}}},                         # solid hood: cuts the whole head by its own silhouette, drawn on top
+ 'painter':{'versions':{},                                                       # eyes/brows/mouth generic
+          'adds':{'beret':{'gaze':'none','labels':['beret-occluder','beret']},  # beret: white occluder cuts head+brows (no occHead), ink on top
+                  'l-cheek':'eye','r-cheek':'eye'}},                            # blush marks reproject on the face sphere
  'farmer':{'versions':{},                                                        # eyes/brows/mouth generic
           'adds':{'hat':{'gaze':'none','labels':['hat-occluder','hat'],'occHead':True},  # straw hat: white occluder cuts the head crown, ink on top
                   'mouth-straw':{'gaze':'stick','labels':['mouth-straw','mouth-straw-ocluder']}}},  # wheat stalk (ink) + its own occluder (cuts the face-core, not the mouth)
