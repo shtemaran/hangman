@@ -55,7 +55,7 @@ Set any of these live; the rAF loop applies them next frame.
 | `breath` | 0..1 | Breath phase (0.5 rest); drives torso expand, bob, necklace |
 | `bodyLean` | −1..1 | Whole-body lean about the feet |
 | `hands` | `'neutral'` \| `'thumbsup'` | Hand-pose swap |
-| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock`, `executioner`, `farmer`, `painter` | 0..1 | Modifier levels (fade the modifier in) |
+| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock`, `executioner`, `farmer`, `painter`, `priest` | 0..1 | Modifier levels (fade the modifier in) |
 
 Emotions are **combinatorial**: `expr` sets the happy↔sad base, and each overlay
 (`surprise`/`thoughtful`/`confused`) composes on top — you can be sad *and*
@@ -139,7 +139,7 @@ on the whole head group.
 A modifier ADDS features (drawn + animated) and/or OVERRIDES face parts, faded in
 by its level param (`rig.p.<name>` 0..1). Data lives in **`modifiers.json`**,
 built from an annotated tracing. Built-in: **clown, king, nerd, girl, sailor,
-police, clock, executioner, farmer, painter**. **horse** is frozen research in
+police, clock, executioner, farmer, painter, priest**. **horse** is frozen research in
 `generated/horse_modifier.json` (see the tube gazes below).
 
 A modifier entry = `{ adds:{…}, versions:{…}, facefx:{…}, eyefx:{…}, hide:[…],
@@ -162,6 +162,10 @@ headMorph:{…} }`. A quick tour of the built-ins:
   with the breath) with its own occluder that cuts everything but the mouth.
 - **painter** — a beret (its occluder cuts the head *and* the brows, since the
   beret sits low) + rosy cheeks (reproject on the face sphere); full emotions.
+- **priest** — a tall solid cap (`cover`, cross = an opening) + a big beard on the
+  new **`wrap` gaze** (per-vertex sphere reprojection) with a static head-only
+  occluder; `mouthDy` nudges the mouth into the beard opening; `gazeLimitX` squeezes
+  the head-turn (the beard reads worse at extremes). Full emotions.
 
 ### `adds` — extra features
 
@@ -180,6 +184,7 @@ head. Value is either a gaze string or `{gaze, …opts}`:
 | `tube-trunk` | stretch-bridge: base rides the sphere, tip follows the muzzle plate | horse snout trunk |
 | `hand` | rotates around a `center` pivot to the **real current time** (`role: 'hour'\|'minute'`; drawn angle measured at build) | clock hands |
 | `stick` | a rigid mouth prop: base tracks the live mouth corner, flips to the side opposite the gaze (sticky ±1), sways with the breath; drawn in front of the face behind the mouth, its `occ` occluder cuts the face-core (all but the mouth) | farmer straw |
+| `wrap` | a big head-hugging shape stored as outline contours; **every vertex** reprojects on the head sphere each frame, so the shape deforms around the turn. `nonzero` fill (survives self-overlap) + silhouette clamp (vertices past ±90° collapse to the edge, not fold). Optional static head-only `occluder`. | priest beard |
 
 Add options (in the `{…}` form):
 
@@ -255,6 +260,13 @@ working dial that still emotes. Blink/emotions apply on top.
 modifier level (clock: egg head → round rim; executioner: head shrunk to tuck
 inside the hood). Per-modifier, so several can coexist. The head sphere geometry
 (`headC/Rx/Ry`) comes from `win-head` only.
+
+### `mouthDy` / `gazeLimitX` / `gazeLimitY` — per-modifier tweaks
+
+`mouthDy:6` shifts the base mouth down (priest: into the beard opening) by the
+modifier level. `gazeLimitX:0.65` / `gazeLimitY` **squeeze** the head-turn range
+(remap −1..1 → −limit..limit, blended by level, tightest wins) — gaze stays
+smooth, just narrower, instead of clipping. Priest limits X to ±0.65.
 
 ### `maskEyes` — white eyes on top
 
@@ -380,7 +392,7 @@ steps** (`kAt(i, step)`). Each bar `k`: `1` = fully off-frame, `0` = at rest,
 | `tools/svg_query.py` | headless-browser: where does an element actually render? |
 | `tools/bones.py`, `build_finger_bend.py`, `build_arm_bend.py` | spline-bone baking (see BONES.md) |
 | `face_targets.json` | corresponded 100-pt outlines per part × key (neutral/happy/sad/surprised/shut) |
-| `modifiers.json` | built modifiers (clown, king, nerd, girl, sailor, police, clock, executioner, farmer, painter) |
+| `modifiers.json` | built modifiers (clown, king, nerd, girl, sailor, police, clock, executioner, farmer, painter, priest) |
 | `compat.js` + `compatibility.json` | compatibility query helper + forbidden-set data |
 | `suggest.js` + `tags.json` | tag-based character-set suggester + per-character tags |
 

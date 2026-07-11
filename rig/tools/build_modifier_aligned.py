@@ -25,6 +25,9 @@ CONFIG={
  'executioner':{'versions':{}, 'hide':['brow-l','brow-r','mouth'], 'maskEyes':True,  # full black hood; brows/mouth gone; eyes shown white on top (still emote)
           'headMorph':{'c':[409.75,288],'rx':90,'ry':90},                       # shrink the head fully inside the hood silhouette (svg_query'd; hood covers the rest)
           'adds':{'hood':{'gaze':'none','cover':True}}},                         # solid hood: cuts the whole head by its own silhouette, drawn on top
+ 'priest':{'versions':{}, 'mouthDy':6, 'gazeLimitX':0.65,                        # mouth nudged down; head-turn squeezed to ±0.65 (beard reads worse at extremes)
+          'adds':{'hat':{'gaze':'none','cover':True},                          # tall solid cap (cross = an opening); cuts the head crown, drawn on top
+                  'beard':{'gaze':'wrap','occluder':'beard-occluder','fade':True}}},  # per-vertex sphere wrap + STATIC head-only occluder; reveal by opacity (not zoom)
  'painter':{'versions':{},                                                       # eyes/brows/mouth generic
           'adds':{'beret':{'gaze':'none','labels':['beret-occluder','beret']},  # beret: white occluder cuts head+brows (no occHead), ink on top
                   'l-cheek':'eye','r-cheek':'eye'}},                            # blush marks reproject on the face sphere
@@ -131,6 +134,16 @@ def trace_pairs(pairs):                                   # explicit (transform,
         if len(c)>=3: subs.append(smooth([px2vb(y,x,W,H) for y,x in c]))
     return ' '.join(x for x in subs if x)
 def trace_wl(label): return trace_pairs(part_paths(label))   # all contours -> smooth win-local path 'd'
+def contours_wl(label, n=140):                            # every contour -> n resampled win-local points (outer + holes), for the 'wrap' gaze
+    m,W,H=mask_of(label,1100); pad=np.zeros((H+2,W+2),bool); pad[1:-1,1:-1]=m; out=[]
+    for c in measure.find_contours(pad.astype(float),0.5):
+        xy=np.array([px2vb(y,x,W,H) for y,x in c])
+        d=np.r_[0,np.cumsum(np.hypot(*np.diff(xy,axis=0).T))]
+        if len(xy)<8 or d[-1]==0: continue
+        d/=d[-1]; t=np.linspace(0,1,n,endpoint=False)
+        rs=np.stack([np.interp(t,d,xy[:,0]),np.interp(t,d,xy[:,1])],1)
+        out.append((len(c), rs.round(1).tolist()))
+    out.sort(key=lambda z:-z[0]); return [pts for _,pts in out]   # largest contour (outer) first
 def centre(label):
     m,W,H=mask_of(label,700); ys,xs=np.where(m)
     return [round(VB[0]+(xs.min()+xs.max())/2/W*VB[2],2), round(VB[1]+(ys.min()+ys.max())/2/H*VB[3],2)]
@@ -183,6 +196,9 @@ elif cfg.get('headMorph'):                                # scale+shift the egg 
     x0,x1=VB[0]+xs.min()/W*VB[2],VB[0]+xs.max()/W*VB[2]; y0,y1=VB[1]+ys.min()/H*VB[3],VB[1]+ys.max()/H*VB[3]
     out['headMorph']={'c':[round((x0+x1)/2,2),round((y0+y1)/2,2)],'rx':round((x1-x0)/2,2),'ry':round((y1-y0)/2,2)}
 if cfg.get('maskEyes'): out['maskEyes']=True              # draw the base eyes white on top of the hood (they still emote)
+if cfg.get('mouthDy'): out['mouthDy']=cfg['mouthDy']      # shift the base mouth down by this many px (into a beard opening)
+for k in ('gazeLimitX','gazeLimitY'):                     # squeeze the head-turn range (graceful, not a clip)
+    if cfg.get(k) is not None: out[k]=cfg[k]
 for name,spec in cfg['adds'].items():
     if isinstance(spec,dict) and spec.get('stack'):       # ordered [label, fill] parts, raw geometry, drawn back-to-front (e.g. white cap base + black detail)
         a={'gaze':spec['gaze'], 'c':centre([lb for lb,_ in spec['stack']]),
@@ -196,6 +212,13 @@ for name,spec in cfg['adds'].items():
     if isinstance(spec,dict) and spec.get('beads'):       # per-bead add (necklace): each bead individually placeable
         a={'gaze':spec['gaze'], 'beads':[{'c':centre(lb),'paths':occ_front(part_full(lb))} for lb in spec['beads']]}
         a['c']=centre(spec['beads']); out['adds'][name]=a; continue
+    if (spec.get('gaze') if isinstance(spec,dict) else spec)=='wrap':    # big head-hugging shape (beard): store contours, reproject per-vertex at runtime
+        src=spec['labels'] if isinstance(spec,dict) and spec.get('labels') else name
+        a={'gaze':'wrap','c':centre(src),'contours':contours_wl(src)}
+        occl=spec.get('occluder') if isinstance(spec,dict) else None         # optional STATIC head-only occluder
+        if occl and part_ds(occl): a['occ']=trace_wl(occl)
+        if isinstance(spec,dict) and spec.get('fade'): a['fade']=True        # reveal by opacity lerp instead of zoom-from-nothing
+        out['adds'][name]=a; print('  wrap:',name,'contours=',[len(c) for c in a['contours']],'occ=',bool(a.get('occ'))); continue
     if (spec.get('gaze') if isinstance(spec,dict) else spec)=='stick':   # mouth prop (straw): ink + its own occluder, both win-local
         full=part_full(spec['labels']) if isinstance(spec,dict) and spec.get('labels') else part_full(name)
         ink=[(x['tf'],x['d']) for x in full if not is_white(x['fill'])]

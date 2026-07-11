@@ -8,5 +8,6 @@
  "police": ["police","cop","law","officer","badge","arrest","crime","security","guard","patrol","justice","uniform","siren"],
  "executioner": ["executioner","hangman","hood","death","dark","scary","ghost","fear","shadow","mask","doom","grim","spooky","gallows","axe","punishment","night"],
  "farmer": ["farmer","farm","field","crop","harvest","wheat","straw","hay","barn","tractor","garden","plant","seed","grow","country","rural","hat","scarecrow"],
- "painter": ["painter","paint","art","artist","canvas","brush","easel","palette","draw","color","beret","gallery","picture","portrait","creative","masterpiece","sketch"]
+ "painter": ["painter","paint","art","artist","canvas","brush","easel","palette","draw","color","beret","gallery","picture","portrait","creative","masterpiece","sketch"],
+ "priest": ["priest","church","pray","prayer","faith","god","holy","bless","religion","cross","beard","clergy","saint","sermon","temple","monk","spirit","chapel"]
 }
