@@ -21,6 +21,10 @@
    "nerd"
   ],
   [
+   "clock",
+   "painter"
+  ],
+  [
    "clown",
    "confused"
   ],
@@ -70,6 +74,10 @@
   ],
   [
    "executioner",
+   "painter"
+  ],
+  [
+   "executioner",
    "police"
   ],
   [
@@ -86,11 +94,19 @@
   ],
   [
    "farmer",
+   "painter"
+  ],
+  [
+   "farmer",
    "police"
   ],
   [
    "farmer",
    "sailor"
+  ],
+  [
+   "king",
+   "painter"
   ],
   [
    "king",
@@ -103,6 +119,14 @@
   [
    "king",
    "thoughtful"
+  ],
+  [
+   "painter",
+   "police"
+  ],
+  [
+   "painter",
+   "sailor"
   ],
   [
    "police",

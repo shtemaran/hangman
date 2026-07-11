@@ -55,7 +55,7 @@ Set any of these live; the rAF loop applies them next frame.
 | `breath` | 0..1 | Breath phase (0.5 rest); drives torso expand, bob, necklace |
 | `bodyLean` | −1..1 | Whole-body lean about the feet |
 | `hands` | `'neutral'` \| `'thumbsup'` | Hand-pose swap |
-| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock` | 0..1 | Modifier levels (fade the modifier in) |
+| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock`, `executioner`, `farmer`, `painter` | 0..1 | Modifier levels (fade the modifier in) |
 
 Emotions are **combinatorial**: `expr` sets the happy↔sad base, and each overlay
 (`surprise`/`thoughtful`/`confused`) composes on top — you can be sad *and*
@@ -139,8 +139,8 @@ on the whole head group.
 A modifier ADDS features (drawn + animated) and/or OVERRIDES face parts, faded in
 by its level param (`rig.p.<name>` 0..1). Data lives in **`modifiers.json`**,
 built from an annotated tracing. Built-in: **clown, king, nerd, girl, sailor,
-police, clock**. **horse** is frozen research in `generated/horse_modifier.json`
-(see the tube gazes below).
+police, clock, executioner, farmer, painter**. **horse** is frozen research in
+`generated/horse_modifier.json` (see the tube gazes below).
 
 A modifier entry = `{ adds:{…}, versions:{…}, facefx:{…}, eyefx:{…}, hide:[…],
 headMorph:{…} }`. A quick tour of the built-ins:
@@ -160,6 +160,8 @@ headMorph:{…} }`. A quick tour of the built-ins:
 - **farmer** — a straw hat (occluder-cut) + a wheat straw in the mouth corner
   (`stick` gaze: rides the live mouth corner, flips side-opposite the gaze, sways
   with the breath) with its own occluder that cuts everything but the mouth.
+- **painter** — a beret (its occluder cuts the head *and* the brows, since the
+  beret sits low) + rosy cheeks (reproject on the face sphere); full emotions.
 
 ### `adds` — extra features
 
@@ -378,7 +380,7 @@ steps** (`kAt(i, step)`). Each bar `k`: `1` = fully off-frame, `0` = at rest,
 | `tools/svg_query.py` | headless-browser: where does an element actually render? |
 | `tools/bones.py`, `build_finger_bend.py`, `build_arm_bend.py` | spline-bone baking (see BONES.md) |
 | `face_targets.json` | corresponded 100-pt outlines per part × key (neutral/happy/sad/surprised/shut) |
-| `modifiers.json` | built modifiers (clown, king, nerd, girl, sailor, police, clock) |
+| `modifiers.json` | built modifiers (clown, king, nerd, girl, sailor, police, clock, executioner, farmer, painter) |
 | `compat.js` + `compatibility.json` | compatibility query helper + forbidden-set data |
 | `suggest.js` + `tags.json` | tag-based character-set suggester + per-character tags |
 
