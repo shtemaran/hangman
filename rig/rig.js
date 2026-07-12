@@ -40,7 +40,8 @@ function createRig(svg, T, mods){
   for(const s of ['l','r']) [eyeG[s],eyeP[s]]=mkFeat('eye-'+s);
   const mouthG=mkG('rig-mouth'), mouthP=document.createElementNS(NS,'path'); mouthP.setAttribute('fill','#081C1A'); mouthP.id='rig-mouth-shape';
   mouthG.appendChild(mouthP); headContent.appendChild(mouthG);   // mouth ON TOP of the props (never cut by them); takes gaze + facefx
-  $('win-torso')&&body.appendChild($('win-torso'));
+  const bodyContent=mkG('rig-body-content'); body.appendChild(bodyContent);   // torso + arms — an obese head occluder cuts THIS (body only), not the head
+  $('win-torso')&&bodyContent.appendChild($('win-torso'));
   const srcArmR=$('win-hands-r'), srcArmL=$('win-hands-l');   // sources for hand poses (cloned, then removed)
   srcArmR&&srcArmR.remove(); srcArmL&&srcArmL.remove();
   body.appendChild(head); rootG.appendChild(body);
@@ -112,6 +113,12 @@ function createRig(svg, T, mods){
   const hRect=mRect.cloneNode(true); const headCuts=mkG('rig-head-cuts');
   headMask.appendChild(hRect); headMask.appendChild(headCuts); occMask.parentNode.appendChild(headMask);
   headMaskG.setAttribute('mask','url(#rig-head-mask)');
+  // a mask on bodyContent (torso + arms) — an obese head occluder cuts the BODY where the wide head hangs
+  // over it, without touching the head/face.
+  const bodyMask=document.createElementNS(NS,'mask'); bodyMask.id='rig-body-mask'; setRegion(bodyMask);
+  const bRect=mRect.cloneNode(true); const bodyCuts=mkG('rig-body-cuts');
+  bodyMask.appendChild(bRect); bodyMask.appendChild(bodyCuts); occMask.parentNode.appendChild(bodyMask);
+  bodyContent.setAttribute('mask','url(#rig-body-mask)');
   const mkCut=(sp,par)=>{ const pp=document.createElementNS(NS,'path'); pp.setAttribute('fill','#000');
     if(sp.rule)pp.setAttribute('fill-rule',sp.rule); if(sp.tf)pp.setAttribute('transform',sp.tf); pp.setAttribute('d',sp.d); par.appendChild(pp); return pp; };
   // a modifier is "headwear" if any of its adds carries a white occluder — its rigid (none/ear) inks then
@@ -136,8 +143,8 @@ function createRig(svg, T, mods){
       let beads=null, cx=0, refG=null, srcC=null, occZg=null, wrapP=null;
       // white occluders on head-riding adds CUT the head (transparent) instead of painting white; the cut
       // group rides the SAME transform as the add so it tracks caps/crown/ears. (not body — necklace beads deform.)
-      const gz=a.gaze||'eye', doCut = gz==='none'||gz==='ear'||((gz==='stick'||gz==='wrap')&&a.occ);
-      const cutParent = gz==='stick' ? strawCuts : (a.occHead||gz==='wrap') ? headCuts : occCuts;  // stick→faceCore; occHead/wrap (hats, beard)→head-only; else full content
+      const gz=a.gaze||'eye', doCut = gz==='none'||gz==='ear'||a.occ;
+      const cutParent = a.occTarget==='body' ? bodyCuts : gz==='stick' ? strawCuts : (a.occHead||gz==='wrap') ? headCuts : occCuts;  // body (obese)/faceCore(straw)/head-only(hats)/full content
       const cutG=doCut?mkG('rig-cut-'+mn+'-'+lb):null; if(cutG) cutParent.appendChild(cutG);
       const put=(sp,inkTarget)=>{ if(doCut && sp.fill==='#ffffff') mkCut(sp,cutG); else addPath(inkTarget,sp); };
       let cutRefG=null;
@@ -162,14 +169,15 @@ function createRig(svg, T, mods){
       else if(a.cover){ const pth=document.createElementNS(NS,'path'); pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth);  // solid hood: ink on top (wearG)…
         if(cutG) mkCut({d:a.d, fill:'#081C1A', rule:'evenodd'}, cutG); }        // …and cut the head by its own silhouette (full cover)
       else { const pth=document.createElementNS(NS,'path'); pth.setAttribute('fill',a.fill||'#081C1A'); pth.setAttribute('d',a.d); zg.appendChild(pth);  // plain ink…
-        if(gz==='stick'&&a.occ&&cutG) mkCut({d:a.occ, fill:'#ffffff', rule:'evenodd'}, cutG); }   // …stick prop also cuts the faceCore (occluder)
+        if(a.occ&&cutG) mkCut({d:a.occ, fill:'#ffffff', rule:'nonzero'}, cutG); }   // …+ its occluder cut (stick→faceCore, obese head→body)
       rg.id='rig-mod-'+mn+'-'+lb; rg.appendChild(zg);
       const toWear = (modHW && (gz==='none'||gz==='ear')) || gz==='wrap';   // headwear ink / a wrapped shape (beard) -> top layer, above the mouth
-      (a.gaze==='body'?bodyG : toWear?wearG : gz==='stick'?mouthProps : a.below?underG:overG).appendChild(rg);
+      (a.asHead?headMaskG : a.gaze==='body'?bodyG : toWear?wearG : gz==='stick'?mouthProps : a.below?underG:overG).appendChild(rg);   // asHead -> behind the features (as the head shape)
       return {rg, zg, cutG, cutRefG, c:a.mirror?null:a.c, zc:a.mirror?null:((lb==='lipstick'&&mouthC)?mouthC:a.c), gaze:a.gaze||'eye', dy:a.dy||0, z:a.z||0,
               base:a.base, tip:a.tip, beads, cx, refG, srcC, mirror:a.mirror||null, clip:(a.clip==null?null:a.clip), earY:(a.earY==null?null:a.earY), occZg,   // tube-trunk; necklace; mirror; ear clip; ear Y-scale; under-features occluder zoom
               pivot:a.pivot, ang:a.angle, role:a.role, fade:a.fade||false,   // clock hand: pivot/angle/role; fade = opacity crossfade reveal
               wrapP, contours:a.contours||null,                              // 'wrap': the beard path + its win-local contours (reprojected per-vertex each frame)
+              t:a.t, headBottom:a.headBottom,                                // 'chin': ratio + head-bottom point for the mouth->head-bottom anchor
               // 'stick' prop: its own base point, the two mouth corners it hangs from, + eased flip state
               strawBase:(a.gaze==='stick')?strawBaseOf(a.d):null,
               rightIdx:(a.gaze==='stick')?nearestMouthIdx(a.c):null,
@@ -194,6 +202,7 @@ function createRig(svg, T, mods){
   // and still morph with expression/blink. (The real eyes underneath get cut away by the hood.)
   const MASKEYES=[]; for(const mn in MODS){ if(MODS[mn].maskEyes) MASKEYES.push(mn); }
   const MOUTHDY=[]; for(const mn in MODS){ if(MODS[mn].mouthDy) MOUTHDY.push({mn, dy:MODS[mn].mouthDy}); }   // shift the mouth down (priest: into the beard opening)
+  const REPLACEHEAD=[]; for(const mn in MODS){ if(MODS[mn].replaceHead) REPLACEHEAD.push(mn); }   // fade the base win-head out (an asHead add replaces it, e.g. obese)
   // gaze limit: a modifier can SQUEEZE the head-turn range (e.g. priest ±0.65) — remap, don't clip, so
   // full gaze input still moves, just within a narrower band. Multiple limits -> the tightest wins.
   const GAZELIMX=[], GAZELIMY=[];
@@ -224,7 +233,7 @@ function createRig(svg, T, mods){
   const arms={};
   const armPose=(name,leftEl,rightEl)=>{ const g=mkG('rig-hands-'+name);
     if(rightEl)g.appendChild(rightEl); if(leftEl)g.appendChild(leftEl);
-    body.insertBefore(g, head); arms[name]=g; };
+    bodyContent.appendChild(g); arms[name]=g; };   // arms live in bodyContent so the obese head occluder cuts them too
   if(srcArmR){
     const mL=mkG('rig-arm-mirror'); mL.setAttribute('transform',`translate(${2*headC[0]} 0) scale(-1 1)`); mL.appendChild(srcArmR.cloneNode(true));
     armPose('neutral', mL, srcArmR.cloneNode(true));
@@ -241,7 +250,7 @@ function createRig(svg, T, mods){
                      thoughtful:{ mouth:1, eye:0.5, brow:1 },
                      confused:{ mouth:1, eye:0.5, brow:1 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, sailor:0, police:0, clock:0, executioner:0, farmer:0, painter:0, priest:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, sailor:0, police:0, clock:0, executioner:0, farmer:0, painter:0, priest:0, obese:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   const X=(el,t)=>el.setAttribute('transform',t);
   function flush(){
@@ -305,7 +314,8 @@ function createRig(svg, T, mods){
     if(winHead){ let hm=null,hmL=0; for(const mn in HEADMORPH){ const l=clamp(p[mn]||0,0,1); if(l>hmL){hmL=l;hm=HEADMORPH[mn];} }  // reshape the head (clock rim / hood dome)
       if(hm&&hmL>0){ const sx=1+hmL*(hm.rx/Rx-1), sy=1+hmL*(hm.ry/Ry-1), tx=hmL*(hm.c[0]-headC[0]), ty=hmL*(hm.c[1]-headC[1]);
         winHead.setAttribute('transform',`translate(${tx.toFixed(2)} ${ty.toFixed(2)}) translate(${headC[0]} ${headC[1]}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-headC[0]} ${-headC[1]})`); }
-      else winHead.removeAttribute('transform'); }
+      else winHead.removeAttribute('transform');
+      let hv=1; for(const mn of REPLACEHEAD) hv*=1-clamp(p[mn]||0,0,1); winHead.style.opacity=hv; }   // fade the base head out as an obese head replaces it
     for(const s of ['l','r']){ const list=HIDE['brow-'+s]; const cb=browBase[s];   // eyebrows zoom to nothing when a modifier hides them
       if(!list){ browP[s].removeAttribute('transform'); continue; }
       let v=1; for(const mn of list) v*=1-clamp(p[mn]||0,0,1);
@@ -375,6 +385,9 @@ function createRig(svg, T, mods){
           it.gaze==='ear' ? earTf(it) :                                       // earring: vertical-only, occlusion below
           it.gaze==='hand' ? handTf(it) :                                     // clock hand: rotate to the real time
           it.gaze==='stick' ? stickTf(it) :                                   // mouth prop (straw): translate-follow + gaze flip
+          it.gaze==='chin' ? (()=>{ const lm=spherePt(mouthBase[0],mouthBase[1],0,cfg.constrainMouth);  // double chin: stay at ratio t on the line mouth->head-bottom
+            const ax=lm[0]+it.t*(it.headBottom[0]-lm[0]), ay=lm[1]+it.t*(it.headBottom[1]-lm[1]);
+            return `translate(${(ax-it.c[0]).toFixed(2)} ${(ay-it.c[1]).toFixed(2)})`; })() :
           (it.gaze==='none'||it.gaze==='tube'||it.gaze==='body'||it.gaze==='wrap') ? '' :   // none/body ride the head; wrap = vertices carry the reproject
           sphere(it.c[0], it.c[1], it.dy, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye);
         it.rg.setAttribute('transform', tf);
