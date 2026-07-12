@@ -13,6 +13,11 @@ const KEYBOARD = [
 // level. See pickFreeLetters for how the fraction maps to actual letters.
 const FREE_PCT_BY_MODE = { easy: 0.30, medium: 0.15, hard: 0, learning: 0 };
 
+// Easy mode draws only from shorter words (<= this many slots) so beginners
+// aren't handed long, intimidating answers. Measured in slots, so the `ու`
+// digraph counts as one. Other modes use the whole dictionary.
+const EASY_MAX_SLOTS = 7;
+
 // Adaptive hints (learning mode). A word's "help" is derived live from its
 // history: an accumulator nudged by each round's performance -- a good solve
 // pushes it DOWN (toward no hints), a poor one or a loss pushes it UP -- and it
@@ -202,15 +207,13 @@ function computeLetterRank(words) {
 
 // Choose which whole letters to pre-reveal for a round. Reveals rarest-first
 // up to ~pct of the slots, but always leaves at least 2 slots AND 2 distinct
-// letters hidden so the word is never effectively solved. Easy mode is floored
-// to at least one freebie. Returns a Set of tokens (chars) to auto-reveal.
+// letters hidden so the word is never effectively solved. Easy mode additionally
+// gets the word's first letter as a guaranteed foothold, on top of the percentage
+// reveal, and is floored to at least one percentage freebie. Returns a Set of
+// tokens (chars) to auto-reveal.
 function pickFreeLetters(slots, pct) {
   const n = slots.length;
-  if (!pct || n < 3) return new Set();
-  let target = Math.round(pct * n);
-  if (state.mode === 'easy') target = Math.max(1, target);
-  target = Math.min(target, n - 2);
-  if (target <= 0) return new Set();
+  if (n < 3) return new Set();
 
   const rank = state.letterRank || new Map();
   const distinct = [...new Set(slots.map((s) => s.char))]
@@ -219,13 +222,37 @@ function pickFreeLetters(slots, pct) {
 
   const chosen = new Set();
   let revealed = 0;
-  for (const ch of distinct) {
-    if (revealed >= target) break;
+  // Reveal a whole letter, but only while >=2 slots AND >=2 distinct letters
+  // stay hidden. Returns whether it was actually revealed.
+  const tryReveal = (ch) => {
+    if (chosen.has(ch)) return false;
     const cnt = countOf(ch);
-    if (n - (revealed + cnt) < 2) break;               // keep >=2 slots hidden
-    if (distinct.length - (chosen.size + 1) < 2) break; // keep >=2 letters hidden
+    if (n - (revealed + cnt) < 2) return false;               // keep >=2 slots hidden
+    if (distinct.length - (chosen.size + 1) < 2) return false; // keep >=2 letters hidden
     chosen.add(ch);
     revealed += cnt;
+    return true;
+  };
+
+  // Easy mode's guaranteed foothold: the word's first letter, given on top of
+  // (i.e. not counted against) the percentage reveal below.
+  if (state.mode === 'easy') tryReveal(slots[0].char);
+
+  if (pct) {
+    let target = Math.round(pct * n);
+    if (state.mode === 'easy') target = Math.max(1, target);
+    target = Math.min(target, n - 2);
+    let pctRevealed = 0;                                  // slots the percentage gifted
+    for (const ch of distinct) {
+      if (pctRevealed >= target) break;
+      if (chosen.has(ch)) continue;                       // already gifted (first letter)
+      const cnt = countOf(ch);
+      if (n - (revealed + cnt) < 2) break;               // keep >=2 slots hidden
+      if (distinct.length - (chosen.size + 1) < 2) break; // keep >=2 letters hidden
+      chosen.add(ch);
+      revealed += cnt;
+      pctRevealed += cnt;
+    }
   }
   return chosen;
 }
@@ -321,9 +348,12 @@ async function startGame(mode) {
   state.mode = mode;
   state.score = 0;
   state.letterRank = computeLetterRank(state.words);
+  const pool = (mode === 'easy')
+    ? state.words.filter((w) => buildSlots(w.a).length <= EASY_MAX_SLOTS)
+    : state.words;
   state.picker = (mode === 'learning')
     ? new window.LearningPicker(state.words, readStats())
-    : new window.ShufflePicker(state.words);
+    : new window.ShufflePicker(pool);
   document.getElementById('score').textContent = 'Հաշիվ: 0';
   buildKeyboard();
   pushScreen('game');
