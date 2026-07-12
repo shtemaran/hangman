@@ -49,6 +49,13 @@ function createRig(svg, T, mods){
   // ---- blend-shape helpers (all targets corresponded to the 'happy' topology) ----
   const lerpA=(A,B,t)=>A.map((p,i)=>[p[0]+(B[i][0]-p[0])*t, p[1]+(B[i][1]-p[1])*t]);
   const pathD=P=>{let d=''; for(let i=0;i<P.length;i++) d+=(i?'L':'M')+P[i][0].toFixed(2)+','+P[i][1].toFixed(2)+' '; return d+'Z';};
+  // perf: skip DOM writes whose value didn't change since last frame — the Chromecast's bottleneck is the
+  // style/layout/paint each setAttribute triggers, so a no-op write we avoid is a whole pipeline we avoid.
+  // (Defined up here, before setEye's first call at init, so setEye can route through setD too.)
+  const X=(el,t)=>{ if(!el||el.__t===t)return; el.__t=t; if(t)el.setAttribute('transform',t); else el.removeAttribute('transform'); };  // transform (dirty-checked; '' -> remove)
+  const setD=(el,d)=>{ if(el&&el.__d!==d){ el.__d=d; el.setAttribute('d',d); } };              // path data (dirty-checked)
+  const setOp=(el,o)=>{ if(!el)return; o=(+o).toFixed(3); if(el.__o!==o){ el.__o=o; el.style.opacity=o; } };  // opacity (dirty-checked)
+  const setDisp=(el,d)=>{ if(el&&el.__ds!==d){ el.__ds=d; el.style.display=d; } };            // display (dirty-checked)
   const valence=(slot,e)=>{ const t=T[slot]; return e>=0 ? lerpA(t.neutral,t.happy,e)
                                                           : (t.sad?lerpA(t.neutral,t.sad,-e):t.neutral); };
   // valence(expr) is the happy/sad base shape. Each overlay emotion (level in lv{}) then composes on top,
@@ -70,7 +77,7 @@ function createRig(svg, T, mods){
       const L = part==='mouth' ? clamp(raw/MOUTH_MORPH_END,0,1) : raw;    // mouth morphs faster (done before the lipstick appears)
       P=P.map((p,i)=>[ p[0]+L*(Wv[i][0]-p[0]), p[1]+L*(Wv[i][1]-p[1]) ]); }
     return P; };
-  const setEye=(s,e,lv,openW)=>{ let P=emo('eye-'+s,e,lv); if(openW>0)P=lerpA(P,T['eye-'+s].shut,openW); eyeP[s].setAttribute('d',pathD(P)); };
+  const setEye=(s,e,lv,openW)=>{ let P=emo('eye-'+s,e,lv); if(openW>0)P=lerpA(P,T['eye-'+s].shut,openW); setD(eyeP[s],pathD(P)); };  // via setD so eyeP.__d is populated — the executioner's maskEyes mirror it (below)
   const setMouth=(e,lv)=>mouthP.setAttribute('d',pathD(emo('mouth',e,lv)));
   const setBrow=(s,e,lv)=>browP[s].setAttribute('d',pathD(emo('brow-'+s,e,lv)));
   setBrow('l',1,{}); setBrow('r',1,{}); setEye('l',1,{},0); setEye('r',1,{},0); setMouth(1,{});
@@ -252,12 +259,6 @@ function createRig(svg, T, mods){
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
             eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, sailor:0, police:0, clock:0, executioner:0, farmer:0, painter:0, priest:0, obese:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
-  // perf: skip DOM writes whose value didn't change since last frame — the Chromecast's bottleneck is the
-  // style/layout/paint each setAttribute triggers, so a no-op write we avoid is a whole pipeline we avoid.
-  const X=(el,t)=>{ if(!el||el.__t===t)return; el.__t=t; if(t)el.setAttribute('transform',t); else el.removeAttribute('transform'); };  // transform (dirty-checked; '' -> remove)
-  const setD=(el,d)=>{ if(el&&el.__d!==d){ el.__d=d; el.setAttribute('d',d); } };              // path data (dirty-checked)
-  const setOp=(el,o)=>{ if(!el)return; o=(+o).toFixed(3); if(el.__o!==o){ el.__o=o; el.style.opacity=o; } };  // opacity (dirty-checked)
-  const setDisp=(el,d)=>{ if(el&&el.__ds!==d){ el.__ds=d; el.style.display=d; } };            // display (dirty-checked)
   let _faceSig=null, _oL=null, _oR=null, _mouthPts=null;
   function flush(){
     const e=clamp(p.expr,-1,1), lv={surprise:clamp(p.surprise,0,1), thoughtful:clamp(p.thoughtful,0,1), confused:clamp(p.confused,0,1)};
