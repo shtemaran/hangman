@@ -264,14 +264,19 @@ function createRig(svg, T, mods){
     const e=clamp(p.expr,-1,1), lv={surprise:clamp(p.surprise,0,1), thoughtful:clamp(p.thoughtful,0,1), confused:clamp(p.confused,0,1)};
     for(const mn in MODS) lv[mn]=clamp(p[mn]||0,0,1);      // raw modifier level (emo remaps the mouth to morph faster)
     const oL=1-clamp(p.eyeOpenL,0,1), oR=1-clamp(p.eyeOpenR,0,1);
-    // face shapes (emo + pathD) only change with expr / overlay emotions / modifier levels / blink — recompute
-    // them only when that signature changes (idle breath/gaze-wander doesn't touch it), else reuse last frame.
+    // face shapes (emo + pathD) only change with expr / overlay emotions / modifier levels (blink also moves the
+    // eyes). Recompute only when that signature changes — idle breath/gaze-wander doesn't touch it. Split so a
+    // blink (oL/oR only) rebuilds just the eyes, not the 98-point mouth + brows.
     const sig=e+'|'+Object.values(lv).join(',');          // expr + every overlay/modifier level
-    if(sig!==_faceSig||oL!==_oL||oR!==_oR){
-      _faceSig=sig; _oL=oL; _oR=oR;
-      setEye('l', e, lv, oL); setEye('r', e, lv, oR);
+    const sigChanged = sig!==_faceSig;
+    if(sigChanged){
+      _faceSig=sig;
       _mouthPts=emo('mouth',e,lv); setD(mouthP,pathD(_mouthPts));
       setBrow('l',e,lv); setBrow('r',e,lv);
+    }
+    if(sigChanged || oL!==_oL || oR!==_oR){               // eyes also move on blink (eyeOpen)
+      _oL=oL; _oR=oR;
+      setEye('l', e, lv, oL); setEye('r', e, lv, oR);
     }
     const mouthPts=_mouthPts;                              // (reused by 'stick' props to track the mouth corner)
     let mcX=0,mcY=0; for(const q of mouthPts){mcX+=q[0];mcY+=q[1];} mcX/=mouthPts.length; mcY/=mouthPts.length;   // live mouth centre
@@ -415,20 +420,18 @@ function createRig(svg, T, mods){
         else { X(it.zg, `translate(${it.zc[0]} ${it.zc[1]}) scale(${z.toFixed(4)}) translate(${-it.zc[0]} ${-it.zc[1]})`);
           if(it.occZg) X(it.occZg, it.zg.__t); } } }
   }
-  let raf=requestAnimationFrame(function loop(){flush(); raf=requestAnimationFrame(loop);});
 
   // ---- scripted actions ----
   const anims=new Set();
   function drive(dur,fn){ const t0=performance.now(); const a={};
     a.step=now=>{const k=(now-t0)/dur; if(k>=1){fn(1);anims.delete(a);return;} fn(k);}; anims.add(a); }
-  (function tick(now){ for(const a of[...anims]) a.step(now); requestAnimationFrame(tick); })(performance.now());
   const easeShut=k=> k<0.4 ? 1-k/0.4 : k<0.55 ? 0 : (k-0.55)/0.45;
   function blink(D=200){ drive(D,k=>{const eo=clamp(easeShut(k),0,1); p.eyeOpenL=eo; p.eyeOpenR=eo;}); }
   function wink(side='l',D=260){ const key='eyeOpen'+side.toUpperCase(); drive(D,k=>{p[key]=clamp(easeShut(k),0,1);}); }
 
   // ---- idle behaviour ----
   let idleOn=false, tBlink=0, phase=Math.random()*6, gT=[0,0], tGaze=0, focusT=null, focusUntil=0, tPrev=0;
-  (function idleLoop(now){
+  function idleStep(now){
     const dt = tPrev ? Math.min((now-tPrev)/1000, 0.05) : 0;    // seconds since last frame (clamped for tab wakeups)
     tPrev = now;
     const smooth = f => 1 - Math.pow(1-f, dt*60);              // a 60fps-tuned lerp factor, made frame-rate-independent
@@ -445,11 +448,20 @@ function createRig(svg, T, mods){
       p.headX+=(tgt[0]*0.35-p.headX)*kh; p.headY+=(tgt[1]*0.3-p.headY)*kh;
     }
     if(focusT && now>=focusUntil) focusT=null;                 // glance over -> idle wander resumes
-    requestAnimationFrame(idleLoop);
-  })(performance.now());
+  }
   function idle(on){ idleOn=on; if(!on) tBlink=0; }
   // glance at a direction in gaze units (-1..1) and hold `hold` ms before the idle wander takes over again
   function lookAt(gx,gy,hold=700){ focusT=[clamp(gx,-1,1),clamp(gy,-1,1)]; focusUntil=performance.now()+hold; tGaze=focusUntil+200; }
+
+  // ONE rAF driver, in dependency order: idle updates p (gaze/breath, triggers blinks) -> scripted anims update
+  // p (blink/wink eyeOpen) -> flush renders p. Was 3 separate rAF loops (3x the rAF overhead + a per-frame
+  // [...anims] alloc), and flush ran first so it rendered last frame's p — one collapsed loop also kills that lag.
+  let raf=requestAnimationFrame(function frame(now){
+    idleStep(now);
+    for(const a of anims) a.step(now);        // deleting the current element from a Set mid-for-of is safe; no snapshot needed
+    flush();
+    raf=requestAnimationFrame(frame);
+  });
 
   return { p, cfg, flush, blink, wink, idle, lookAt, headC, Rx, Ry, pivots:{neck,feet,belly}, stop:()=>cancelAnimationFrame(raf) };
 }
