@@ -38,6 +38,7 @@ ALLOW = [      # drop these auto-forbidden combos:
   # soldier hides its brows (helmet sits low) but is otherwise a plain hat — keep its compat identical to a
   # brow-less-agnostic hat: eyes+mouth still carry the emotions, and the clown owns the face under the helmet.
   ['soldier','thoughtful'], ['soldier','confused'], ['clown','soldier'],
+  ['police','reaper'], ['reaper','soldier'],        # a cop cap / army helmet perched on top of the reaper hood
   # hand overrides:
   ['clock','girl'], ['clock','sailor'], ['clock','police'], ['clock','soldier'],   # clock works with these accessories/headwear
   ['girl','sailor'],                               # earrings + sailor cap/ears
