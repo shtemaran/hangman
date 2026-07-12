@@ -37,6 +37,9 @@ CONFIG={
  'farmer':{'versions':{},                                                        # eyes/brows/mouth generic
           'adds':{'hat':{'gaze':'none','labels':['hat-occluder','hat'],'occHead':True},  # straw hat: white occluder cuts the head crown, ink on top
                   'mouth-straw':{'gaze':'stick','labels':['mouth-straw','mouth-straw-ocluder']}}},  # wheat stalk (ink) + its own occluder (cuts the face-core, not the mouth)
+ 'soldier':{'versions':{},                                                       # eyes/brows/mouth generic (no chin strap — just the helmet)
+          'adds':{'helmet':{'gaze':'none','labels':['helmet-occluder','helmet'],'occHead':True},  # steel helmet: white occluder cuts the head crown (head-only), ink dome+brim on top
+                  'star':{'gaze':'none','labels':['helmet-star'],'raw':True}}},   # star is its own add -> pops in staggered after the helmet (raw: keep the sharp points)
  'clown':{'versions':{'mouth':'mouth','l-brow':'brow-l','r-brow':'brow-r','l-eye':'eye-l','r-eye':'eye-r'},
           'adds':{'nose':'eye','lipstick':'mouth','l-top-makeup':'eye','l-bottom-makeup':'eye','r-top-makeup':'eye','r-bottom-makeup':'eye'}},
  'king':{'versions':{'mouth':'mouth'},                                          # eyes/brows stay generic -> emotions still work
@@ -190,6 +193,23 @@ def occ_front(full):                                      # occluder(white) behi
     occ=[x for x in full if is_white(x['fill'])]; front=[x for x in full if not is_white(x['fill'])]
     return [{'d':x['d'],'tf':x['tf'],'fill':'#ffffff','rule':x['rule']} for x in occ] \
          + [{'d':x['d'],'tf':x['tf'],'fill':'#081C1A','rule':x['rule']} for x in front]
+
+# expand the working VB to contain EVERY labelled part. make_align's crop is computed pre-alignment, so a
+# small part (e.g. a forehead star) can end up just outside it after the user scales/moves the group — then
+# centre()/trace_wl rasterise it clipped -> empty -> crash. VB coords are absolute win-local, so growing the
+# box only adds empty margin; it changes no part's coordinates. (VB mutated in place so all helpers see it.)
+_lbls=[l for l in re.findall(r'inkscape:label="([^"]*)"', open(ASVG).read()) if l not in ('reference (source png)',)]
+_pairs=[pr for lb in _lbls for pr in part_paths(lb)]
+if _pairs:
+    _pad=max(VB[2],VB[3]); _bv=[VB[0]-_pad,VB[1]-_pad,VB[2]+2*_pad,VB[3]+2*_pad]
+    _W=1400; _H=int(round(_W*_bv[3]/_bv[2]))
+    _inner=''.join(f'<g transform="{tf}"><path fill="#000" d="{d}"/></g>' for tf,d in _pairs)
+    _doc=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{_bv[0]} {_bv[1]} {_bv[2]} {_bv[3]}" width="{_W}" height="{_H}">{_inner}</svg>'
+    _m=np.array(Image.open(io.BytesIO(cairosvg.svg2png(bytestring=_doc.encode(),output_width=_W,output_height=_H,background_color='white'))).convert('L'))<128
+    _ys,_xs=np.where(_m)
+    if len(_xs):
+        _x0=_bv[0]+_xs.min()/_W*_bv[2]; _x1=_bv[0]+_xs.max()/_W*_bv[2]; _y0=_bv[1]+_ys.min()/_H*_bv[3]; _y1=_bv[1]+_ys.max()/_H*_bv[3]
+        VB[:]=[min(VB[0],_x0-15), min(VB[1],_y0-15), max(VB[0]+VB[2],_x1+15)-min(VB[0],_x0-15), max(VB[1]+VB[3],_y1+15)-min(VB[1],_y0-15)]
 
 out={'adds':{}, 'versions':{}}
 if cfg.get('hide'): out['hide']=cfg['hide']               # base face slots this modifier hides (faded by level)

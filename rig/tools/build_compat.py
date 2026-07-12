@@ -35,7 +35,7 @@ ALLOW = [      # drop these auto-forbidden combos:
   ['king','expression'],                           # mouth is a mustache, but the eyes/brows still carry happy/sad
   ['clock','thoughtful'], ['clock','confused'],    # clock hides brows, but its eyes+mouth still morph the emotion
   # hand overrides:
-  ['clock','girl'], ['clock','sailor'], ['clock','police'],   # clock works with these accessories/headwear
+  ['clock','girl'], ['clock','sailor'], ['clock','police'], ['clock','soldier'],   # clock works with these accessories/headwear
   ['girl','sailor'],                               # earrings + sailor cap/ears
   ['girl','expression'], ['girl','surprise'],      # girl emotes fully (thoughtful/confused already allowed)
   ['king','confused'], ['king','surprise'],        # king emotes (thoughtful stays off)

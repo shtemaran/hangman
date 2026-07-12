@@ -55,7 +55,7 @@ Set any of these live; the rAF loop applies them next frame.
 | `breath` | 0..1 | Breath phase (0.5 rest); drives torso expand, bob, necklace |
 | `bodyLean` | −1..1 | Whole-body lean about the feet |
 | `hands` | `'neutral'` \| `'thumbsup'` | Hand-pose swap |
-| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock`, `executioner`, `farmer`, `painter`, `priest`, `obese` | 0..1 | Modifier levels (fade the modifier in) |
+| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock`, `executioner`, `farmer`, `painter`, `priest`, `obese`, `soldier` | 0..1 | Modifier levels (fade the modifier in) |
 
 Emotions are **combinatorial**: `expr` sets the happy↔sad base, and each overlay
 (`surprise`/`thoughtful`/`confused`) composes on top — you can be sad *and*
@@ -171,6 +171,9 @@ headMorph:{…} }`. A quick tour of the built-ins:
   double chin on the **`chin` gaze** (rides between the mouth and the head bottom)
   and an occluder that cuts the **body** where the wide head overhangs it
   (`occTarget:'body'`). Full emotions.
+- **soldier** — a steel helmet (dome + brim + star): a white occluder cuts the head
+  crown (`occHead`, head-only, so the brows stay), the ink dome/brim/star draw on
+  top. No chin strap. Rides the head (`none` gaze); full emotions.
 
 ### `adds` — extra features
 
