@@ -183,8 +183,12 @@ headMorph:{…} }`. A quick tour of the built-ins:
   `damp` (0.65), so the features slide over it for a 2.5D turn instead of a flat plane.
   Inner **hood folds** are a `fold`-gaze cut that trails the skull by a fraction `t`
   (its position on the top-of-head → skull-centre line), so they move least of all —
-  a depth gradient features > skull > folds. Base eyes/brows/mouth hidden (the skull
-  is the whole face); deadpan (no emotions).
+  a depth gradient features > skull > folds. The base eyes become the black sockets
+  by **`versions` (shape morph) + `facefx` (relocate/resize onto the socket)** — so
+  they morph in from the marduk eyes (no crossfade), sit on the skull, and **blink
+  shuts in place** (the version is normalised into the base-eye frame so facefx's
+  transform carries the whole open/shut eye to the socket). Brows + mouth hidden (the
+  teeth are part of the cut). Deadpan — the socket `versions` lock the eyes.
 
 ### `adds` — extra features
 
