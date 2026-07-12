@@ -22,6 +22,10 @@
   ],
   [
    "clock",
+   "obese"
+  ],
+  [
+   "clock",
    "painter"
   ],
   [
@@ -78,6 +82,10 @@
   ],
   [
    "executioner",
+   "obese"
+  ],
+  [
+   "executioner",
    "painter"
   ],
   [
@@ -135,6 +143,10 @@
   [
    "king",
    "thoughtful"
+  ],
+  [
+   "obese",
+   "priest"
   ],
   [
    "painter",

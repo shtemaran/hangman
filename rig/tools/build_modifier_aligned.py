@@ -25,6 +25,9 @@ CONFIG={
  'executioner':{'versions':{}, 'hide':['brow-l','brow-r','mouth'], 'maskEyes':True,  # full black hood; brows/mouth gone; eyes shown white on top (still emote)
           'headMorph':{'c':[409.75,288],'rx':90,'ry':90},                       # shrink the head fully inside the hood silhouette (svg_query'd; hood covers the rest)
           'adds':{'hood':{'gaze':'none','cover':True}}},                         # solid hood: cuts the whole head by its own silhouette, drawn on top
+ 'obese':{'versions':{}, 'replaceHead':True,                                     # wide head replaces the egg (win-head fades out); eyes/mouth stay central
+          'adds':{'head':{'gaze':'none','asHead':True,'fade':True,'occluder':'head-occluder','occTarget':'body'},  # head outline behind the features; its occluder cuts the BODY it hangs over
+                  'chin':{'gaze':'chin','fade':True}}},                        # double chin: rides a line between the mouth and the head bottom
  'priest':{'versions':{}, 'mouthDy':6, 'gazeLimitX':0.65,                        # mouth nudged down; head-turn squeezed to ±0.65 (beard reads worse at extremes)
           'adds':{'hat':{'gaze':'none','cover':True},                          # tall solid cap (cross = an opening); cuts the head crown, drawn on top
                   'beard':{'gaze':'wrap','occluder':'beard-occluder','fade':True}}},  # per-vertex sphere wrap + STATIC head-only occluder; reveal by opacity (not zoom)
@@ -69,6 +72,7 @@ CONFIG={
                   'snout-trunk':'tube-trunk'}},                                    # bridge head<->muzzle (stretch)
 }
 cfg=CONFIG[MOD]
+FTd=json.load(open(FT))                                    # face targets (mouth centre for the chin anchor, versions later)
 
 # parse the aligned SVG; find each part (by id "<name>-<label>" or inkscape:label) and its FULL
 # ancestor transform chain, so parts in different places/spaces (e.g. a top-level occluder layer vs
@@ -199,6 +203,7 @@ if cfg.get('maskEyes'): out['maskEyes']=True              # draw the base eyes w
 if cfg.get('mouthDy'): out['mouthDy']=cfg['mouthDy']      # shift the base mouth down by this many px (into a beard opening)
 for k in ('gazeLimitX','gazeLimitY'):                     # squeeze the head-turn range (graceful, not a clip)
     if cfg.get(k) is not None: out[k]=cfg[k]
+if cfg.get('replaceHead'): out['replaceHead']=True        # fade the base win-head out (an `asHead` add replaces it)
 for name,spec in cfg['adds'].items():
     if isinstance(spec,dict) and spec.get('stack'):       # ordered [label, fill] parts, raw geometry, drawn back-to-front (e.g. white cap base + black detail)
         a={'gaze':spec['gaze'], 'c':centre([lb for lb,_ in spec['stack']]),
@@ -212,6 +217,13 @@ for name,spec in cfg['adds'].items():
     if isinstance(spec,dict) and spec.get('beads'):       # per-bead add (necklace): each bead individually placeable
         a={'gaze':spec['gaze'], 'beads':[{'c':centre(lb),'paths':occ_front(part_full(lb))} for lb in spec['beads']]}
         a['c']=centre(spec['beads']); out['adds'][name]=a; continue
+    if (spec.get('gaze') if isinstance(spec,dict) else spec)=='chin':    # double chin: anchor at a fixed ratio on the line mouth -> head bottom
+        chinc=centre(name); a={'gaze':'chin','c':chinc,'d':trace_wl(name)}
+        m,W,H=mask_of('head',700); ys,_=np.where(m); hby=VB[1]+ys.max()/H*VB[3]   # bottom-Y of the (obese) head silhouette
+        mc=np.array(FTd['mouth']['happy']); mcy=float(mc.mean(0)[1]); mcx=float(mc.mean(0)[0])
+        a['headBottom']=[round(mcx,2),round(hby,2)]; a['t']=round((chinc[1]-mcy)/(hby-mcy),3)   # ratio along mouth->headBottom
+        if isinstance(spec,dict) and spec.get('fade'): a['fade']=True
+        out['adds'][name]=a; print('  chin: t=',a['t'],'headBottom=',a['headBottom']); continue
     if (spec.get('gaze') if isinstance(spec,dict) else spec)=='wrap':    # big head-hugging shape (beard): store contours, reproject per-vertex at runtime
         src=spec['labels'] if isinstance(spec,dict) and spec.get('labels') else name
         a={'gaze':'wrap','c':centre(src),'contours':contours_wl(src)}
@@ -244,6 +256,9 @@ for name,spec in cfg['adds'].items():
         if spec.get('occHead'): a['occHead']=True         # route the white occluder under the features (occlude the head only)
         if spec.get('fade'): a['fade']=True               # reveal by opacity crossfade instead of zoom-from-nothing
         if spec.get('cover'): a['cover']=True             # solid shape: cut the head by its OWN silhouette + draw it on top (hood)
+        if spec.get('asHead'): a['asHead']=True           # draw this add BEHIND the features, as the head shape (obese head replacement)
+        if spec.get('occluder') and part_ds(spec['occluder']):   # a separate white occluder for this add; occTarget = which mask (body/head/content)
+            a['occ']=trace_wl(spec['occluder']); a['occTarget']=spec.get('occTarget','content')
     if a['gaze']=='hand':                                 # clock hand: pivot on the centre dot, store its drawn angle + role
         piv=centre('center'); a['pivot']=piv; a['angle']=hand_angle(src,piv); a['role']=spec['role']
     if a['gaze']=='tube-trunk':                           # bridge head<->muzzle: base = end nearer head, tip = end nearer muzzle
@@ -251,7 +266,7 @@ for name,spec in cfg['adds'].items():
         (tip,base)=(e0,e1) if np.hypot(*(e0-Cm))<np.hypot(*(e1-Cm)) else (e1,e0)
         a['base']=[round(base[0],2),round(base[1],2)]; a['tip']=[round(tip[0],2),round(tip[1],2)]
     out['adds'][name]=a
-FTd=json.load(open(FT))
+# (FTd loaded above)
 if cfg.get('eyefx'):                                       # move+shrink the base eyes to sit behind the lenses
     seen=set(); pairs=[]                                                       # pupils, wherever labelled (dedupe by d)
     for lb in cfg['eyefx']:

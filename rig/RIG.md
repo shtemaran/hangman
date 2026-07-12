@@ -55,7 +55,7 @@ Set any of these live; the rAF loop applies them next frame.
 | `breath` | 0..1 | Breath phase (0.5 rest); drives torso expand, bob, necklace |
 | `bodyLean` | −1..1 | Whole-body lean about the feet |
 | `hands` | `'neutral'` \| `'thumbsup'` | Hand-pose swap |
-| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock`, `executioner`, `farmer`, `painter`, `priest` | 0..1 | Modifier levels (fade the modifier in) |
+| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock`, `executioner`, `farmer`, `painter`, `priest`, `obese` | 0..1 | Modifier levels (fade the modifier in) |
 
 Emotions are **combinatorial**: `expr` sets the happy↔sad base, and each overlay
 (`surprise`/`thoughtful`/`confused`) composes on top — you can be sad *and*
@@ -139,7 +139,7 @@ on the whole head group.
 A modifier ADDS features (drawn + animated) and/or OVERRIDES face parts, faded in
 by its level param (`rig.p.<name>` 0..1). Data lives in **`modifiers.json`**,
 built from an annotated tracing. Built-in: **clown, king, nerd, girl, sailor,
-police, clock, executioner, farmer, painter, priest**. **horse** is frozen research in
+police, clock, executioner, farmer, painter, priest, obese**. **horse** is frozen research in
 `generated/horse_modifier.json` (see the tube gazes below).
 
 A modifier entry = `{ adds:{…}, versions:{…}, facefx:{…}, eyefx:{…}, hide:[…],
@@ -166,6 +166,11 @@ headMorph:{…} }`. A quick tour of the built-ins:
   new **`wrap` gaze** (per-vertex sphere reprojection) with a static head-only
   occluder; `mouthDy` nudges the mouth into the beard opening; `gazeLimitX` squeezes
   the head-turn (the beard reads worse at extremes). Full emotions.
+- **obese** — replaces the head shape: a wide head outline draws *behind* the
+  features (`asHead`) while the base head crossfades out (`replaceHead`), plus a
+  double chin on the **`chin` gaze** (rides between the mouth and the head bottom)
+  and an occluder that cuts the **body** where the wide head overhangs it
+  (`occTarget:'body'`). Full emotions.
 
 ### `adds` — extra features
 
@@ -185,6 +190,7 @@ head. Value is either a gaze string or `{gaze, …opts}`:
 | `hand` | rotates around a `center` pivot to the **real current time** (`role: 'hour'\|'minute'`; drawn angle measured at build) | clock hands |
 | `stick` | a rigid mouth prop: base tracks the live mouth corner, flips to the side opposite the gaze (sticky ±1), sways with the breath; drawn in front of the face behind the mouth, its `occ` occluder cuts the face-core (all but the mouth) | farmer straw |
 | `wrap` | a big head-hugging shape stored as outline contours; **every vertex** reprojects on the head sphere each frame, so the shape deforms around the turn. `nonzero` fill (survives self-overlap) + silhouette clamp (vertices past ±90° collapse to the edge, not fold). Optional static head-only `occluder`. | priest beard |
+| `chin` | anchors at a fixed ratio on the line **mouth → head-bottom**, so it tracks the mouth (reprojects with it) while staying between the mouth and the chin | obese double chin |
 
 Add options (in the `{…}` form):
 
@@ -267,6 +273,14 @@ inside the hood). Per-modifier, so several can coexist. The head sphere geometry
 modifier level. `gazeLimitX:0.65` / `gazeLimitY` **squeeze** the head-turn range
 (remap −1..1 → −limit..limit, blended by level, tightest wins) — gaze stays
 smooth, just narrower, instead of clipping. Priest limits X to ±0.65.
+
+### `replaceHead` / `asHead` — swap the head shape
+
+`replaceHead:true` fades the base `win-head` out by the modifier level; an add
+flagged `asHead:true` draws **behind the features** (in the head-mask group) as the
+new head shape (obese wide head). An add's occluder can target a specific mask via
+`occTarget` — `'body'` cuts the torso+arms (obese head overhang), `'head'` the
+head shape only, else the full content. Masks: content / face-core / head / body.
 
 ### `maskEyes` — white eyes on top
 
@@ -392,7 +406,7 @@ steps** (`kAt(i, step)`). Each bar `k`: `1` = fully off-frame, `0` = at rest,
 | `tools/svg_query.py` | headless-browser: where does an element actually render? |
 | `tools/bones.py`, `build_finger_bend.py`, `build_arm_bend.py` | spline-bone baking (see BONES.md) |
 | `face_targets.json` | corresponded 100-pt outlines per part × key (neutral/happy/sad/surprised/shut) |
-| `modifiers.json` | built modifiers (clown, king, nerd, girl, sailor, police, clock, executioner, farmer, painter, priest) |
+| `modifiers.json` | built modifiers (clown, king, nerd, girl, sailor, police, clock, executioner, farmer, painter, priest, obese) |
 | `compat.js` + `compatibility.json` | compatibility query helper + forbidden-set data |
 | `suggest.js` + `tags.json` | tag-based character-set suggester + per-character tags |
 

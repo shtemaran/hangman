@@ -17,7 +17,7 @@ function createCharacter(host) {
   let pendingStep = 0;                  // step to apply once the rig is mounted
   let suggest = null;                   // tag -> character-set picker (once mounted)
   let lastSeed = null, pendingTags = [], pendingSeed = 0;
-  const ALL_MODS = ['clown', 'king', 'nerd', 'girl', 'sailor', 'police', 'clock', 'executioner', 'farmer', 'painter', 'priest'];
+  const ALL_MODS = ['clown', 'king', 'nerd', 'girl', 'sailor', 'police', 'clock', 'executioner', 'farmer', 'painter', 'priest', 'obese'];
   const modTarget = {};                 // modifier -> target level (0/1); fades toward it
   let modRaf = null;
 
