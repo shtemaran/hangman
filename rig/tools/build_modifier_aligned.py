@@ -29,7 +29,7 @@ CONFIG={
           'adds':{'head':{'gaze':'none','asHead':True,'fade':True,'occluder':'head-occluder','occTarget':'body'},  # head outline behind the features; its occluder cuts the BODY it hangs over
                   'chin':{'gaze':'chin','fade':True}}},                        # double chin: rides a line between the mouth and the head bottom
  'reaper':{'versions':{'l-eye':'eye-l','r-eye':'eye-r'}, 'facefx':['l-eye','r-eye'], 'replaceHead':True, 'hide':['brow-l','brow-r','mouth'],   # hood replaces head; base eyes MORPH to the socket shape (versions) AND relocate+resize onto them (facefx) so blink shuts in place; brows/mouth hidden
-          'gazeClampX':[-0.5,0.5], 'gazeClampY':[-0.8,0.15],                     # hood constrains the look: side ±0.5, up to -0.8, barely down (+0.15, the brow occludes)
+          'gazeClampX':[-0.2,0.2], 'gazeClampY':[-0.55,0.1],                     # hood constrains the look: side ±0.2, up to -0.55, barely down (+0.1, the brow occludes)
           'adds':{'hood':{'gaze':'none','asHead':True},                          # solid black hood = the new head shape
                   'skull':{'gaze':'cutout','damp':0.65},                         # skull = a transparent cut into the hood (bg shows through); reprojects at 65% gaze -> parallax vs the features
                   'hood-folds':{'gaze':'fold','damp':0.65},                      # inner hood creases: transparent cut that moves a FRACTION (t) of the skull, on the line top-of-head -> skull-centre (deeper -> move less)

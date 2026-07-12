@@ -297,8 +297,8 @@ smooth, just narrower, instead of clipping. Priest limits X to ±0.65.
 `gazeClampX:[lo,hi]` / `gazeClampY:[lo,hi]` are a **hard clamp** to possibly
 **asymmetric** bounds (blended by level: ±1 at 0 → the modifier's bounds at 1).
 Unlike the squeeze, the gaze is 1:1 inside the band and stops at the edge. The
-reaper uses `X:[−0.5,0.5]`, `Y:[−0.8,0.15]` — the hood lets it look up freely but
-barely down (the brow would occlude the face).
+reaper uses `X:[−0.2,0.2]`, `Y:[−0.55,0.1]` — a tight cone (the hood frames the
+face), looking up more than down (the brow would occlude it).
 
 ### `replaceHead` / `asHead` — swap the head shape
 
