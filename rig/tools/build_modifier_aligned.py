@@ -29,6 +29,7 @@ CONFIG={
           'adds':{'head':{'gaze':'none','asHead':True,'fade':True,'occluder':'head-occluder','occTarget':'body'},  # head outline behind the features; its occluder cuts the BODY it hangs over
                   'chin':{'gaze':'chin','fade':True}}},                        # double chin: rides a line between the mouth and the head bottom
  'reaper':{'versions':{}, 'replaceHead':True, 'hide':['eye-l','eye-r','brow-l','brow-r','mouth'],   # black hood replaces the head; base face hidden (the skull is its own face)
+          'gazeClampX':[-0.5,0.5], 'gazeClampY':[-0.8,0.15],                     # hood constrains the look: side ±0.5, up to -0.8, barely down (+0.15, the brow occludes)
           'adds':{'hood':{'gaze':'none','asHead':True},                          # solid black hood = the new head shape
                   'skull':{'gaze':'cutout','damp':0.65},                         # skull = a transparent cut into the hood (bg shows through); reprojects at 65% gaze -> parallax vs the features
                   'hood-folds':{'gaze':'fold','damp':0.65},                      # inner hood creases: transparent cut that moves a FRACTION (t) of the skull, on the line top-of-head -> skull-centre (deeper -> move less)
@@ -228,6 +229,8 @@ elif cfg.get('headMorph'):                                # scale+shift the egg 
 if cfg.get('maskEyes'): out['maskEyes']=True              # draw the base eyes white on top of the hood (they still emote)
 if cfg.get('mouthDy'): out['mouthDy']=cfg['mouthDy']      # shift the base mouth down by this many px (into a beard opening)
 for k in ('gazeLimitX','gazeLimitY'):                     # squeeze the head-turn range (graceful, not a clip)
+    if cfg.get(k) is not None: out[k]=cfg[k]
+for k in ('gazeClampX','gazeClampY'):                     # hard [lo,hi] gaze bounds (can be asymmetric) — reaper
     if cfg.get(k) is not None: out[k]=cfg[k]
 if cfg.get('replaceHead'): out['replaceHead']=True        # fade the base win-head out (an `asHead` add replaces it)
 for name,spec in cfg['adds'].items():

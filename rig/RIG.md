@@ -283,12 +283,18 @@ modifier level (clock: egg head → round rim; executioner: head shrunk to tuck
 inside the hood). Per-modifier, so several can coexist. The head sphere geometry
 (`headC/Rx/Ry`) comes from `win-head` only.
 
-### `mouthDy` / `gazeLimitX` / `gazeLimitY` — per-modifier tweaks
+### `mouthDy` / `gazeLimitX` / `gazeLimitY` / `gazeClampX` / `gazeClampY` — per-modifier tweaks
 
 `mouthDy:6` shifts the base mouth down (priest: into the beard opening) by the
 modifier level. `gazeLimitX:0.65` / `gazeLimitY` **squeeze** the head-turn range
 (remap −1..1 → −limit..limit, blended by level, tightest wins) — gaze stays
 smooth, just narrower, instead of clipping. Priest limits X to ±0.65.
+
+`gazeClampX:[lo,hi]` / `gazeClampY:[lo,hi]` are a **hard clamp** to possibly
+**asymmetric** bounds (blended by level: ±1 at 0 → the modifier's bounds at 1).
+Unlike the squeeze, the gaze is 1:1 inside the band and stops at the edge. The
+reaper uses `X:[−0.5,0.5]`, `Y:[−0.8,0.15]` — the hood lets it look up freely but
+barely down (the brow would occlude the face).
 
 ### `replaceHead` / `asHead` — swap the head shape
 

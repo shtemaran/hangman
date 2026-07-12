@@ -217,6 +217,12 @@ function createRig(svg, T, mods){
   for(const mn in MODS){ if(MODS[mn].gazeLimitX!=null) GAZELIMX.push({mn, lim:MODS[mn].gazeLimitX});
                          if(MODS[mn].gazeLimitY!=null) GAZELIMY.push({mn, lim:MODS[mn].gazeLimitY}); }
   const gazeScale=list=>{ let s=1; for(const g of list) s=Math.min(s, 1-clamp(p[g.mn]||0,0,1)*(1-g.lim)); return s; };
+  // gaze clamp: hard, possibly ASYMMETRIC per-axis bounds [lo,hi] (e.g. reaper Y -0.8..0.15 — looks up freely,
+  // barely down under the hood brow). Blended by level: at 0 the bound is ±1 (off), at 1 it's the modifier's.
+  const GAZECLAMPX=[], GAZECLAMPY=[];
+  for(const mn in MODS){ if(MODS[mn].gazeClampX) GAZECLAMPX.push({mn, lo:MODS[mn].gazeClampX[0], hi:MODS[mn].gazeClampX[1]});
+                         if(MODS[mn].gazeClampY) GAZECLAMPY.push({mn, lo:MODS[mn].gazeClampY[0], hi:MODS[mn].gazeClampY[1]}); }
+  const gazeClamp=(v,list)=>{ let lo=-1,hi=1; for(const g of list){ const L=clamp(p[g.mn]||0,0,1); lo=Math.max(lo,-1+L*(g.lo+1)); hi=Math.min(hi,1-L*(1-g.hi)); } return clamp(v,lo,hi); };
   let maskEyeEls=null;
   if(MASKEYES.length){ maskEyeEls={};
     for(const s of ['l','r']){ const g=mkG('rig-maskeye-'+s), e=document.createElementNS(NS,'path');
@@ -282,8 +288,9 @@ function createRig(svg, T, mods){
     const mouthPts=_mouthPts;                              // (reused by 'stick' props to track the mouth corner)
     let mcX=0,mcY=0; for(const q of mouthPts){mcX+=q[0];mcY+=q[1];} mcX/=mouthPts.length; mcY/=mouthPts.length;   // live mouth centre
     // gaze/head-turn: reproject each face feature on the head sphere (translate + foreshorten)
-    const yaw=clamp(p.gazeX,-1,1)*gazeScale(GAZELIMX)*cfg.gazeYaw*Math.PI/180,     // gaze squeezed by any active gaze-limit modifier (priest)
-          pitch=clamp(p.gazeY,-1,1)*gazeScale(GAZELIMY)*cfg.gazePitch*Math.PI/180;
+    const gzx=gazeClamp(clamp(p.gazeX,-1,1),GAZECLAMPX), gzy=gazeClamp(clamp(p.gazeY,-1,1),GAZECLAMPY);   // hard per-axis bounds (reaper), then the squeeze (priest)
+    const yaw=gzx*gazeScale(GAZELIMX)*cfg.gazeYaw*Math.PI/180,     // gaze clamped + squeezed by any active gaze-limit modifier
+          pitch=gzy*gazeScale(GAZELIMY)*cfg.gazePitch*Math.PI/180;
     // k = latitude constraint: 0 = free swing (reaches silhouette), 1 = true sphere (stays inside at its height)
     const spherePt=(bx,by,dip,k,ya,pi)=>{               // where a point on the head sphere lands (centre only)
       if(ya===undefined)ya=yaw; if(pi===undefined)pi=pitch;
