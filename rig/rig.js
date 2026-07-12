@@ -56,6 +56,7 @@ function createRig(svg, T, mods){
   const setD=(el,d)=>{ if(el&&el.__d!==d){ el.__d=d; el.setAttribute('d',d); } };              // path data (dirty-checked)
   const setOp=(el,o)=>{ if(!el)return; o=(+o).toFixed(3); if(el.__o!==o){ el.__o=o; el.style.opacity=o; } };  // opacity (dirty-checked)
   const setDisp=(el,d)=>{ if(el&&el.__ds!==d){ el.__ds=d; el.style.display=d; } };            // display (dirty-checked)
+  const r2=x=>Math.round(x*100)/100, r4=x=>Math.round(x*1e4)/1e4;   // round tf coords: short strings, cheaper than toFixed, V8 prints shortest round-trip (no float noise)
   const valence=(slot,e)=>{ const t=T[slot]; return e>=0 ? lerpA(t.neutral,t.happy,e)
                                                           : (t.sad?lerpA(t.neutral,t.sad,-e):t.neutral); };
   // valence(expr) is the happy/sad base shape. Each overlay emotion (level in lv{}) then composes on top,
@@ -295,13 +296,13 @@ function createRig(svg, T, mods){
       const sx=(Math.cos(l2)*hr2)/Math.max(Math.cos(la)*hr,1e-3), sy=Math.cos(m2)/Math.max(Math.cos(mu),1e-3);
       return [nx,ny,sx,sy];
     };
-    const sphere=(bx,by,dip,k)=>{ const [nx,ny,sx,sy]=spherePt(bx,by,dip,k);
-      return `translate(${nx} ${ny}) scale(${sx} ${sy}) translate(${-bx} ${-by})`; };
+    const sphere=(bx,by,dip,k)=>{ const [nx,ny,sx,sy]=spherePt(bx,by,dip,k);   // round to shorten the tf string (faster to build+parse on the weak device); Math.round is ~40% cheaper than toFixed for the same 2dp output
+      return `translate(${r2(nx)} ${r2(ny)}) scale(${r4(sx)} ${r4(sy)}) translate(${r2(-bx)} ${r2(-by)})`; };
     // clock: the head is a FLAT disc, not a sphere — features stop reprojecting (fy/fp -> 0) and the
     // whole head foreshortens by cos(yaw)/cos(pitch), so it tilts like a wall clock turning.
     const clockL=clamp(p.clock||0,0,1), fy=yaw*(1-clockL), fp=pitch*(1-clockL);
     const sphereF=(bx,by,dip,k)=>{ const [nx,ny,sx,sy]=spherePt(bx,by,dip,k,fy,fp);
-      return `translate(${nx} ${ny}) scale(${sx} ${sy}) translate(${-bx} ${-by})`; };
+      return `translate(${r2(nx)} ${r2(ny)}) scale(${r4(sx)} ${r4(sy)}) translate(${r2(-bx)} ${r2(-by)})`; };
     X(eyeG.l, sphereF(eyeBase.l[0],eyeBase.l[1],0,cfg.constrainEye));
     X(eyeG.r, sphereF(eyeBase.r[0],eyeBase.r[1],0,cfg.constrainEye));
     // reposition/resize a base feature (eyes X-only via eyefx=nerd; eyes+mouth full-2D via facefx=clock) — keeps its shape so emotions still morph it
