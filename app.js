@@ -13,6 +13,11 @@ const KEYBOARD = [
 // level. See pickFreeLetters for how the fraction maps to actual letters.
 const FREE_PCT_BY_MODE = { easy: 0.30, medium: 0.15, hard: 0, learning: 0 };
 
+// Easy mode draws only from shorter words (<= this many slots) so beginners
+// aren't handed long, intimidating answers. Measured in slots, so the `ու`
+// digraph counts as one. Other modes use the whole dictionary.
+const EASY_MAX_SLOTS = 7;
+
 // Adaptive hints (learning mode). A word's "help" is derived live from its
 // history: an accumulator nudged by each round's performance -- a good solve
 // pushes it DOWN (toward no hints), a poor one or a loss pushes it UP -- and it
@@ -343,9 +348,12 @@ async function startGame(mode) {
   state.mode = mode;
   state.score = 0;
   state.letterRank = computeLetterRank(state.words);
+  const pool = (mode === 'easy')
+    ? state.words.filter((w) => buildSlots(w.a).length <= EASY_MAX_SLOTS)
+    : state.words;
   state.picker = (mode === 'learning')
     ? new window.LearningPicker(state.words, readStats())
-    : new window.ShufflePicker(state.words);
+    : new window.ShufflePicker(pool);
   document.getElementById('score').textContent = 'Հաշիվ: 0';
   buildKeyboard();
   pushScreen('game');
