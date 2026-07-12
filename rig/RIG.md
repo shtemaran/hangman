@@ -55,7 +55,7 @@ Set any of these live; the rAF loop applies them next frame.
 | `breath` | 0..1 | Breath phase (0.5 rest); drives torso expand, bob, necklace |
 | `bodyLean` | −1..1 | Whole-body lean about the feet |
 | `hands` | `'neutral'` \| `'thumbsup'` | Hand-pose swap |
-| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock`, `executioner`, `farmer`, `painter`, `priest`, `obese`, `soldier` | 0..1 | Modifier levels (fade the modifier in) |
+| `clown`, `king`, `nerd`, `girl`, `sailor`, `police`, `clock`, `executioner`, `farmer`, `painter`, `priest`, `obese`, `soldier`, `reaper` | 0..1 | Modifier levels (fade the modifier in) |
 
 Emotions are **combinatorial**: `expr` sets the happy↔sad base, and each overlay
 (`surprise`/`thoughtful`/`confused`) composes on top — you can be sad *and*
@@ -176,6 +176,19 @@ headMorph:{…} }`. A quick tour of the built-ins:
   (`hide`, the helmet sits low — removing the element keeps the forehead, no cut
   hole). The **star** is its own add so it pops in staggered after the helmet. No
   chin strap. Rides the head (`none` gaze); full emotions (eyes+mouth).
+- **reaper** — a grim-reaper: a solid black **hood replaces the head** (`replaceHead`
+  + `asHead`), and the skull face is a **transparent cut** into it (`cutout` gaze) so
+  the game background shows through (reads as the pale skull — cut, don't paint). The
+  black eye sockets + nose reproject at full gaze while the skull cut reprojects at
+  `damp` (0.65), so the features slide over it for a 2.5D turn instead of a flat plane.
+  Inner **hood folds** are a `fold`-gaze cut that trails the skull by a fraction `t`
+  (its position on the top-of-head → skull-centre line), so they move least of all —
+  a depth gradient features > skull > folds. The base eyes become the black sockets
+  by **`versions` (shape morph) + `facefx` (relocate/resize onto the socket)** — so
+  they morph in from the marduk eyes (no crossfade), sit on the skull, and **blink
+  shuts in place** (the version is normalised into the base-eye frame so facefx's
+  transform carries the whole open/shut eye to the socket). Brows + mouth hidden (the
+  teeth are part of the cut). Deadpan — the socket `versions` lock the eyes.
 
 ### `adds` — extra features
 
@@ -196,6 +209,8 @@ head. Value is either a gaze string or `{gaze, …opts}`:
 | `stick` | a rigid mouth prop: base tracks the live mouth corner, flips to the side opposite the gaze (sticky ±1), sways with the breath; drawn in front of the face behind the mouth, its `occ` occluder cuts the face-core (all but the mouth) | farmer straw |
 | `wrap` | a big head-hugging shape stored as outline contours; **every vertex** reprojects on the head sphere each frame, so the shape deforms around the turn. `nonzero` fill (survives self-overlap) + silhouette clamp (vertices past ±90° collapse to the edge, not fold). Optional static head-only `occluder`. | priest beard |
 | `chin` | anchors at a fixed ratio on the line **mouth → head-bottom**, so it tracks the mouth (reprojects with it) while staying between the mouth and the chin | obese double chin |
+| `cutout` | a white shape that **cuts** the head-shape (routes to the head-only mask → background shows through), reprojecting at a **damped** gaze fraction (`damp`, default 0.5). Used with `asHead` head-replacers so features (full gaze) parallax over the hole. | reaper skull |
+| `fold` | a white cut that **trails a `cutout`**: translates by a fraction `t` of the skull-centre's damped movement (`t` = its position on the top-of-head → skull-centre line). Moves least → depth behind the skull. | reaper hood folds |
 
 Add options (in the `{…}` form):
 
@@ -272,12 +287,18 @@ modifier level (clock: egg head → round rim; executioner: head shrunk to tuck
 inside the hood). Per-modifier, so several can coexist. The head sphere geometry
 (`headC/Rx/Ry`) comes from `win-head` only.
 
-### `mouthDy` / `gazeLimitX` / `gazeLimitY` — per-modifier tweaks
+### `mouthDy` / `gazeLimitX` / `gazeLimitY` / `gazeClampX` / `gazeClampY` — per-modifier tweaks
 
 `mouthDy:6` shifts the base mouth down (priest: into the beard opening) by the
 modifier level. `gazeLimitX:0.65` / `gazeLimitY` **squeeze** the head-turn range
 (remap −1..1 → −limit..limit, blended by level, tightest wins) — gaze stays
 smooth, just narrower, instead of clipping. Priest limits X to ±0.65.
+
+`gazeClampX:[lo,hi]` / `gazeClampY:[lo,hi]` are a **hard clamp** to possibly
+**asymmetric** bounds (blended by level: ±1 at 0 → the modifier's bounds at 1).
+Unlike the squeeze, the gaze is 1:1 inside the band and stops at the edge. The
+reaper uses `X:[−0.2,0.2]`, `Y:[−0.55,0.1]` — a tight cone (the hood frames the
+face), looking up more than down (the brow would occlude it).
 
 ### `replaceHead` / `asHead` — swap the head shape
 

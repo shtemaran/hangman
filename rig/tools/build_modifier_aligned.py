@@ -28,6 +28,12 @@ CONFIG={
  'obese':{'versions':{}, 'replaceHead':True,                                     # wide head replaces the egg (win-head fades out); eyes/mouth stay central
           'adds':{'head':{'gaze':'none','asHead':True,'fade':True,'occluder':'head-occluder','occTarget':'body'},  # head outline behind the features; its occluder cuts the BODY it hangs over
                   'chin':{'gaze':'chin','fade':True}}},                        # double chin: rides a line between the mouth and the head bottom
+ 'reaper':{'versions':{'l-eye':'eye-l','r-eye':'eye-r'}, 'facefx':['l-eye','r-eye'], 'replaceHead':True, 'hide':['brow-l','brow-r','mouth'],   # hood replaces head; base eyes MORPH to the socket shape (versions) AND relocate+resize onto them (facefx) so blink shuts in place; brows/mouth hidden
+          'gazeClampX':[-0.2,0.2], 'gazeClampY':[-0.55,0.1],                     # hood constrains the look: side ±0.2, up to -0.55, barely down (+0.1, the brow occludes)
+          'adds':{'hood':{'gaze':'none','asHead':True},                          # solid black hood = the new head shape
+                  'skull':{'gaze':'cutout','damp':0.65},                         # skull = a transparent cut into the hood (bg shows through); reprojects at 65% gaze -> parallax vs the features
+                  'hood-folds':{'gaze':'fold','damp':0.65},                      # inner hood creases: transparent cut that moves a FRACTION (t) of the skull, on the line top-of-head -> skull-centre (deeper -> move less)
+                  'nose':{'gaze':'eye'}}},                                       # black nose, full gaze (no base equivalent -> stays an add)
  'priest':{'versions':{}, 'mouthDy':6, 'gazeLimitX':0.65,                        # mouth nudged down; head-turn squeezed to ±0.65 (beard reads worse at extremes)
           'adds':{'hat':{'gaze':'none','cover':True},                          # tall solid cap (cross = an opening); cuts the head crown, drawn on top
                   'beard':{'gaze':'wrap','occluder':'beard-occluder','fade':True}}},  # per-vertex sphere wrap + STATIC head-only occluder; reveal by opacity (not zoom)
@@ -223,6 +229,8 @@ if cfg.get('maskEyes'): out['maskEyes']=True              # draw the base eyes w
 if cfg.get('mouthDy'): out['mouthDy']=cfg['mouthDy']      # shift the base mouth down by this many px (into a beard opening)
 for k in ('gazeLimitX','gazeLimitY'):                     # squeeze the head-turn range (graceful, not a clip)
     if cfg.get(k) is not None: out[k]=cfg[k]
+for k in ('gazeClampX','gazeClampY'):                     # hard [lo,hi] gaze bounds (can be asymmetric) — reaper
+    if cfg.get(k) is not None: out[k]=cfg[k]
 if cfg.get('replaceHead'): out['replaceHead']=True        # fade the base win-head out (an `asHead` add replaces it)
 for name,spec in cfg['adds'].items():
     if isinstance(spec,dict) and spec.get('stack'):       # ordered [label, fill] parts, raw geometry, drawn back-to-front (e.g. white cap base + black detail)
@@ -244,6 +252,14 @@ for name,spec in cfg['adds'].items():
         a['headBottom']=[round(mcx,2),round(hby,2)]; a['t']=round((chinc[1]-mcy)/(hby-mcy),3)   # ratio along mouth->headBottom
         if isinstance(spec,dict) and spec.get('fade'): a['fade']=True
         out['adds'][name]=a; print('  chin: t=',a['t'],'headBottom=',a['headBottom']); continue
+    if (spec.get('gaze') if isinstance(spec,dict) else spec)=='fold':    # hood folds: a transparent cut that moves a FRACTION t of the skull's damped movement
+        src=spec['labels'] if isinstance(spec,dict) and spec.get('labels') else name
+        foldc=centre(src); skullc=centre('skull')                        # this add's centre + the skull-cut centre it trails
+        m,W,H=mask_of('hood',700); ys,_=np.where(m); topY=VB[1]+ys.min()/H*VB[3]   # top-of-head = top of the hood silhouette
+        a={'gaze':'fold','c':foldc, 'skullC':[round(skullc[0],2),round(skullc[1],2)], 'damp':spec.get('damp',0.65),
+           't':round((foldc[1]-topY)/(skullc[1]-topY),3),                # ratio on the line top-of-head -> skull-centre (0 at the top = still, 1 at the skull = full skull movement)
+           'paths':[{'d':x['d'],'tf':x['tf'],'fill':'#ffffff','rule':x['rule']} for x in part_full(src)]}   # all white -> cuts the hood
+        out['adds'][name]=a; print('  fold: t=',a['t'],'skullC=',a['skullC']); continue
     if (spec.get('gaze') if isinstance(spec,dict) else spec)=='wrap':    # big head-hugging shape (beard): store contours, reproject per-vertex at runtime
         src=spec['labels'] if isinstance(spec,dict) and spec.get('labels') else name
         a={'gaze':'wrap','c':centre(src),'contours':contours_wl(src)}
@@ -277,6 +293,7 @@ for name,spec in cfg['adds'].items():
         if spec.get('fade'): a['fade']=True               # reveal by opacity crossfade instead of zoom-from-nothing
         if spec.get('cover'): a['cover']=True             # solid shape: cut the head by its OWN silhouette + draw it on top (hood)
         if spec.get('asHead'): a['asHead']=True           # draw this add BEHIND the features, as the head shape (obese head replacement)
+        if spec.get('damp') is not None: a['damp']=spec['damp']   # gaze='cutout': reproject at this fraction of the gaze (reaper skull parallax)
         if spec.get('occluder') and part_ds(spec['occluder']):   # a separate white occluder for this add; occTarget = which mask (body/head/content)
             a['occ']=trace_wl(spec['occluder']); a['occTarget']=spec.get('occTarget','content')
     if a['gaze']=='hand':                                 # clock hand: pivot on the centre dot, store its drawn angle + role
@@ -316,7 +333,10 @@ for lb,slot in cfg['versions'].items():
     if not part_ds(lb): print('  (missing version:',lb,')'); continue
     merge=3 if slot.startswith('brow') else 0
     base=np.array(FTd[slot]['happy'])
-    out['versions'].setdefault(slot,{})[EXPR]=correspond(base,outline(lb,merge)).round(2).tolist()  # no recenter
+    V=correspond(base,outline(lb,merge))                  # absolute shape corresponded to the base topology
+    fx=out.get('facefx',{}).get(slot)                     # if this slot ALSO has facefx, express the version in the base frame
+    if fx: V=base.mean(0)+(V-np.array(fx['c']))/fx['s']   # so fxTf (translate c, scale s, translate -base_centroid) maps it back to the socket -> shape + relocate compose, blink shuts in place
+    out['versions'].setdefault(slot,{})[EXPR]=V.round(2).tolist()
 data=json.load(open(MODS)) if __import__('os').path.exists(MODS) else {}
 data[MOD]=out; json.dump(data, open(MODS,'w'))
 print(f'{MOD}: adds={ {k:v["gaze"] for k,v in out["adds"].items()} }  versions={list(out["versions"])}')

@@ -11,5 +11,6 @@
  "painter": ["painter","paint","art","artist","canvas","brush","easel","palette","draw","color","beret","gallery","picture","portrait","creative","masterpiece","sketch"],
  "priest": ["priest","church","pray","prayer","faith","god","holy","bless","religion","cross","beard","clergy","saint","sermon","temple","monk","spirit","chapel"],
  "obese": ["obese","fat","chubby","big","heavy","round","weight","diet","food","eat","huge","large","plump","belly","overweight","chunky","gain"],
- "soldier": ["soldier","army","military","war","helmet","battle","fight","defend","brave","hero","uniform","troop","combat","guard","march","veteran","weapon","gun","enemy","victory","general"]
+ "soldier": ["soldier","army","military","war","helmet","battle","fight","defend","brave","hero","uniform","troop","combat","guard","march","veteran","weapon","gun","enemy","victory","general"],
+ "reaper": ["reaper","death","grim","skull","hood","die","dead","ghost","scythe","soul","dark","spooky","doom","grave","tomb","bone","skeleton","afterlife","fear","haunt","spirit","cloak"]
 }
