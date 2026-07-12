@@ -27,6 +27,8 @@ EMOTIONS = list(GRAB)
 # --- manual tweaks (iterate here) ---
 ADD   = [      # the executioner hood covers the whole face -> nothing else on the head/face shows
   ['executioner','nerd'], ['executioner','girl'],
+  # obese replaces the head shape -> clashes with anything that reshapes/wraps the ORIGINAL head sphere
+  ['obese','priest'], ['obese','executioner'], ['obese','clock'],
 ]
 ALLOW = [      # drop these auto-forbidden combos:
   ['clown','nerd'], ['girl','nerd'],               # nerd's glasses just sit over whatever eyes are there
