@@ -28,6 +28,12 @@ CONFIG={
  'obese':{'versions':{}, 'replaceHead':True,                                     # wide head replaces the egg (win-head fades out); eyes/mouth stay central
           'adds':{'head':{'gaze':'none','asHead':True,'fade':True,'occluder':'head-occluder','occTarget':'body'},  # head outline behind the features; its occluder cuts the BODY it hangs over
                   'chin':{'gaze':'chin','fade':True}}},                        # double chin: rides a line between the mouth and the head bottom
+ 'reaper':{'versions':{}, 'replaceHead':True, 'hide':['eye-l','eye-r','brow-l','brow-r','mouth'],   # black hood replaces the head; base face hidden (the skull is its own face)
+          'adds':{'hood':{'gaze':'none','asHead':True},                          # solid black hood = the new head shape
+                  'skull':{'gaze':'cutout','damp':0.65},                         # skull = a transparent cut into the hood (bg shows through); reprojects at 65% gaze -> parallax vs the features
+                  'hood-folds':{'gaze':'fold','damp':0.65},                      # inner hood creases: transparent cut that moves a FRACTION (t) of the skull, on the line top-of-head -> skull-centre (deeper -> move less)
+                  'l-eye':{'gaze':'eye'}, 'r-eye':{'gaze':'eye'},                # black eye sockets, full gaze reproject (slide over the skull)
+                  'nose':{'gaze':'eye'}}},                                       # black nose, full gaze
  'priest':{'versions':{}, 'mouthDy':6, 'gazeLimitX':0.65,                        # mouth nudged down; head-turn squeezed to ±0.65 (beard reads worse at extremes)
           'adds':{'hat':{'gaze':'none','cover':True},                          # tall solid cap (cross = an opening); cuts the head crown, drawn on top
                   'beard':{'gaze':'wrap','occluder':'beard-occluder','fade':True}}},  # per-vertex sphere wrap + STATIC head-only occluder; reveal by opacity (not zoom)
@@ -244,6 +250,14 @@ for name,spec in cfg['adds'].items():
         a['headBottom']=[round(mcx,2),round(hby,2)]; a['t']=round((chinc[1]-mcy)/(hby-mcy),3)   # ratio along mouth->headBottom
         if isinstance(spec,dict) and spec.get('fade'): a['fade']=True
         out['adds'][name]=a; print('  chin: t=',a['t'],'headBottom=',a['headBottom']); continue
+    if (spec.get('gaze') if isinstance(spec,dict) else spec)=='fold':    # hood folds: a transparent cut that moves a FRACTION t of the skull's damped movement
+        src=spec['labels'] if isinstance(spec,dict) and spec.get('labels') else name
+        foldc=centre(src); skullc=centre('skull')                        # this add's centre + the skull-cut centre it trails
+        m,W,H=mask_of('hood',700); ys,_=np.where(m); topY=VB[1]+ys.min()/H*VB[3]   # top-of-head = top of the hood silhouette
+        a={'gaze':'fold','c':foldc, 'skullC':[round(skullc[0],2),round(skullc[1],2)], 'damp':spec.get('damp',0.65),
+           't':round((foldc[1]-topY)/(skullc[1]-topY),3),                # ratio on the line top-of-head -> skull-centre (0 at the top = still, 1 at the skull = full skull movement)
+           'paths':[{'d':x['d'],'tf':x['tf'],'fill':'#ffffff','rule':x['rule']} for x in part_full(src)]}   # all white -> cuts the hood
+        out['adds'][name]=a; print('  fold: t=',a['t'],'skullC=',a['skullC']); continue
     if (spec.get('gaze') if isinstance(spec,dict) else spec)=='wrap':    # big head-hugging shape (beard): store contours, reproject per-vertex at runtime
         src=spec['labels'] if isinstance(spec,dict) and spec.get('labels') else name
         a={'gaze':'wrap','c':centre(src),'contours':contours_wl(src)}
@@ -277,6 +291,7 @@ for name,spec in cfg['adds'].items():
         if spec.get('fade'): a['fade']=True               # reveal by opacity crossfade instead of zoom-from-nothing
         if spec.get('cover'): a['cover']=True             # solid shape: cut the head by its OWN silhouette + draw it on top (hood)
         if spec.get('asHead'): a['asHead']=True           # draw this add BEHIND the features, as the head shape (obese head replacement)
+        if spec.get('damp') is not None: a['damp']=spec['damp']   # gaze='cutout': reproject at this fraction of the gaze (reaper skull parallax)
         if spec.get('occluder') and part_ds(spec['occluder']):   # a separate white occluder for this add; occTarget = which mask (body/head/content)
             a['occ']=trace_wl(spec['occluder']); a['occTarget']=spec.get('occTarget','content')
     if a['gaze']=='hand':                                 # clock hand: pivot on the centre dot, store its drawn angle + role

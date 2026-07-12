@@ -14,7 +14,7 @@ Then apply ADD (extra forbidden sets) and ALLOW (remove auto ones) by hand.
 import json, itertools
 MODS = json.load(open('/home/serg/cpp/hangman/rig/modifiers.json'))
 
-HEADWEAR = {'king','sailor','police','clock'}          # claim the head slot (hat / head-shape)
+HEADWEAR = {'king','sailor','police','clock','reaper'}  # claim the head slot (hat / head-shape; reaper's hood REPLACES the head)
 # emotion tokens -> which face parts they need, and how strongly (grab weight; 1 = fully owns it)
 GRAB = {
   'surprise':   {'mouth':1,   'eye':1,   'brow':0},
@@ -29,6 +29,7 @@ ADD   = [      # the executioner hood covers the whole face -> nothing else on t
   ['executioner','nerd'], ['executioner','girl'],
   # obese replaces the head shape -> clashes with anything that reshapes/wraps the ORIGINAL head sphere
   ['obese','priest'], ['obese','executioner'], ['obese','clock'],
+  ['obese','reaper'],   # both replace the head shape
 ]
 ALLOW = [      # drop these auto-forbidden combos:
   ['clown','nerd'], ['girl','nerd'],               # nerd's glasses just sit over whatever eyes are there

@@ -151,8 +151,8 @@ function createRig(svg, T, mods){
       let beads=null, cx=0, refG=null, srcC=null, occZg=null, wrapP=null;
       // white occluders on head-riding adds CUT the head (transparent) instead of painting white; the cut
       // group rides the SAME transform as the add so it tracks caps/crown/ears. (not body — necklace beads deform.)
-      const gz=a.gaze||'eye', doCut = gz==='none'||gz==='ear'||a.occ;
-      const cutParent = a.occTarget==='body' ? bodyCuts : gz==='stick' ? strawCuts : (a.occHead||gz==='wrap') ? headCuts : occCuts;  // body (obese)/faceCore(straw)/head-only(hats)/full content
+      const gz=a.gaze||'eye', doCut = gz==='none'||gz==='ear'||gz==='cutout'||gz==='fold'||a.occ;   // cutout/fold = white shapes that CUT the head-shape (reaper skull hole + hood creases)
+      const cutParent = a.occTarget==='body' ? bodyCuts : gz==='stick' ? strawCuts : (a.occHead||gz==='wrap'||gz==='cutout'||gz==='fold') ? headCuts : occCuts;  // body (obese)/faceCore(straw)/head-only(hats+reaper skull+folds)/full content
       const cutG=doCut?mkG('rig-cut-'+mn+'-'+lb):null; if(cutG) cutParent.appendChild(cutG);
       const put=(sp,inkTarget)=>{ if(doCut && sp.fill==='#ffffff') mkCut(sp,cutG); else addPath(inkTarget,sp); };
       let cutRefG=null;
@@ -185,7 +185,7 @@ function createRig(svg, T, mods){
               base:a.base, tip:a.tip, beads, cx, refG, srcC, mirror:a.mirror||null, clip:(a.clip==null?null:a.clip), earY:(a.earY==null?null:a.earY), occZg,   // tube-trunk; necklace; mirror; ear clip; ear Y-scale; under-features occluder zoom
               pivot:a.pivot, ang:a.angle, role:a.role, fade:a.fade||false,   // clock hand: pivot/angle/role; fade = opacity crossfade reveal
               wrapP, contours:a.contours||null,                              // 'wrap': the beard path + its win-local contours (reprojected per-vertex each frame)
-              t:a.t, headBottom:a.headBottom,                                // 'chin': ratio + head-bottom point for the mouth->head-bottom anchor
+              t:a.t, headBottom:a.headBottom, damp:(a.damp==null?0.5:a.damp), skullC:a.skullC||null,   // 'chin': ratio + head-bottom; 'cutout'/'fold': gaze fraction; 'fold': skull-centre it trails
               // 'stick' prop: its own base point, the two mouth corners it hangs from, + eased flip state
               strawBase:(a.gaze==='stick')?strawBaseOf(a.d):null,
               rightIdx:(a.gaze==='stick')?nearestMouthIdx(a.c):null,
@@ -258,7 +258,7 @@ function createRig(svg, T, mods){
                      thoughtful:{ mouth:1, eye:0.5, brow:1 },
                      confused:{ mouth:1, eye:0.5, brow:1 } } };   // emotion x part grab matrix (see emo())
   const p={ headX:0, headY:0, headTilt:0, gazeX:0, gazeY:0,
-            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, sailor:0, police:0, clock:0, executioner:0, farmer:0, painter:0, priest:0, obese:0, soldier:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
+            eyeOpenL:1, eyeOpenR:1, expr:1, surprise:0, thoughtful:0, confused:0, clown:0, king:0, nerd:0, girl:0, sailor:0, police:0, clock:0, executioner:0, farmer:0, painter:0, priest:0, obese:0, soldier:0, reaper:0, hands:'neutral', breath:0.5, bodyLean:0, energy:1 };
 
   let _faceSig=null, _oL=null, _oR=null, _mouthPts=null;
   function flush(){
@@ -406,6 +406,10 @@ function createRig(svg, T, mods){
           it.gaze==='chin' ? (()=>{ const lm=spherePt(mouthBase[0],mouthBase[1],0,cfg.constrainMouth);  // double chin: stay at ratio t on the line mouth->head-bottom
             const ax=lm[0]+it.t*(it.headBottom[0]-lm[0]), ay=lm[1]+it.t*(it.headBottom[1]-lm[1]);
             return `translate(${(ax-it.c[0]).toFixed(2)} ${(ay-it.c[1]).toFixed(2)})`; })() :
+          it.gaze==='cutout' ? (()=>{ const [nx,ny,sx,sy]=spherePt(it.c[0],it.c[1],it.dy,cfg.constrainEye, yaw*it.damp, pitch*it.damp);  // reaper skull hole: damped sphere reproject (moves less than the eyes/nose -> 2.5D depth, not a flat plane)
+            return `translate(${r2(nx)} ${r2(ny)}) scale(${r4(sx)} ${r4(sy)}) translate(${r2(-it.c[0])} ${r2(-it.c[1])})`; })() :
+          it.gaze==='fold' ? (()=>{ const [nx,ny]=spherePt(it.skullC[0],it.skullC[1],0,cfg.constrainEye, yaw*it.damp, pitch*it.damp);  // hood crease: translate a fraction t of the skull-centre's damped movement (deeper -> moves less)
+            return `translate(${r2(it.t*(nx-it.skullC[0]))} ${r2(it.t*(ny-it.skullC[1]))})`; })() :
           (it.gaze==='none'||it.gaze==='tube'||it.gaze==='body'||it.gaze==='wrap') ? '' :   // none/body ride the head; wrap = vertices carry the reproject
           sphere(it.c[0], it.c[1], it.dy, it.gaze==='mouth'?cfg.constrainMouth:cfg.constrainEye);
         X(it.rg, tf);

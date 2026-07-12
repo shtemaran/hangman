@@ -33,6 +33,10 @@
    "priest"
   ],
   [
+   "clock",
+   "reaper"
+  ],
+  [
    "clown",
    "confused"
   ],
@@ -54,6 +58,10 @@
   ],
   [
    "clown",
+   "reaper"
+  ],
+  [
+   "clown",
    "surprise"
   ],
   [
@@ -63,6 +71,10 @@
   [
    "confused",
    "executioner"
+  ],
+  [
+   "confused",
+   "reaper"
   ],
   [
    "executioner",
@@ -98,6 +110,10 @@
   ],
   [
    "executioner",
+   "reaper"
+  ],
+  [
+   "executioner",
    "sailor"
   ],
   [
@@ -126,6 +142,10 @@
   ],
   [
    "farmer",
+   "reaper"
+  ],
+  [
+   "farmer",
    "sailor"
   ],
   [
@@ -146,6 +166,10 @@
   ],
   [
    "king",
+   "reaper"
+  ],
+  [
+   "king",
    "sailor"
   ],
   [
@@ -161,6 +185,10 @@
    "priest"
   ],
   [
+   "obese",
+   "reaper"
+  ],
+  [
    "painter",
    "police"
   ],
@@ -170,6 +198,10 @@
   ],
   [
    "painter",
+   "reaper"
+  ],
+  [
+   "painter",
    "sailor"
   ],
   [
@@ -182,6 +214,10 @@
   ],
   [
    "police",
+   "reaper"
+  ],
+  [
+   "police",
    "sailor"
   ],
   [
@@ -190,11 +226,27 @@
   ],
   [
    "priest",
+   "reaper"
+  ],
+  [
+   "priest",
    "sailor"
   ],
   [
    "priest",
    "soldier"
+  ],
+  [
+   "reaper",
+   "sailor"
+  ],
+  [
+   "reaper",
+   "soldier"
+  ],
+  [
+   "reaper",
+   "thoughtful"
   ],
   [
    "sailor",
