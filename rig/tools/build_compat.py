@@ -34,8 +34,11 @@ ALLOW = [      # drop these auto-forbidden combos:
   ['clown','nerd'], ['girl','nerd'],               # nerd's glasses just sit over whatever eyes are there
   ['king','expression'],                           # mouth is a mustache, but the eyes/brows still carry happy/sad
   ['clock','thoughtful'], ['clock','confused'],    # clock hides brows, but its eyes+mouth still morph the emotion
+  # soldier hides its brows (helmet sits low) but is otherwise a plain hat — keep its compat identical to a
+  # brow-less-agnostic hat: eyes+mouth still carry the emotions, and the clown owns the face under the helmet.
+  ['soldier','thoughtful'], ['soldier','confused'], ['clown','soldier'],
   # hand overrides:
-  ['clock','girl'], ['clock','sailor'], ['clock','police'],   # clock works with these accessories/headwear
+  ['clock','girl'], ['clock','sailor'], ['clock','police'], ['clock','soldier'],   # clock works with these accessories/headwear
   ['girl','sailor'],                               # earrings + sailor cap/ears
   ['girl','expression'], ['girl','surprise'],      # girl emotes fully (thoughtful/confused already allowed)
   ['king','confused'], ['king','surprise'],        # king emotes (thoughtful stays off)

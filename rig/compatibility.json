@@ -102,6 +102,10 @@
   ],
   [
    "executioner",
+   "soldier"
+  ],
+  [
+   "executioner",
    "thoughtful"
   ],
   [
@@ -125,6 +129,10 @@
    "sailor"
   ],
   [
+   "farmer",
+   "soldier"
+  ],
+  [
    "king",
    "painter"
   ],
@@ -139,6 +147,10 @@
   [
    "king",
    "sailor"
+  ],
+  [
+   "king",
+   "soldier"
   ],
   [
    "king",
@@ -161,6 +173,10 @@
    "sailor"
   ],
   [
+   "painter",
+   "soldier"
+  ],
+  [
    "police",
    "priest"
   ],
@@ -169,8 +185,20 @@
    "sailor"
   ],
   [
+   "police",
+   "soldier"
+  ],
+  [
    "priest",
    "sailor"
+  ],
+  [
+   "priest",
+   "soldier"
+  ],
+  [
+   "sailor",
+   "soldier"
   ]
  ]
 }
