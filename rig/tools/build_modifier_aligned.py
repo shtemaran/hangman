@@ -37,7 +37,7 @@ CONFIG={
  'farmer':{'versions':{},                                                        # eyes/brows/mouth generic
           'adds':{'hat':{'gaze':'none','labels':['hat-occluder','hat'],'occHead':True},  # straw hat: white occluder cuts the head crown, ink on top
                   'mouth-straw':{'gaze':'stick','labels':['mouth-straw','mouth-straw-ocluder']}}},  # wheat stalk (ink) + its own occluder (cuts the face-core, not the mouth)
- 'soldier':{'versions':{},                                                       # eyes/brows/mouth generic (no chin strap — just the helmet)
+ 'soldier':{'versions':{}, 'hide':['brow-l','brow-r'],                            # eyes/mouth generic; brows removed (helmet sits low, no brows under it)
           'adds':{'helmet':{'gaze':'none','labels':['helmet-occluder','helmet'],'occHead':True},  # steel helmet: white occluder cuts the head crown (head-only), ink dome+brim on top
                   'star':{'gaze':'none','labels':['helmet-star'],'raw':True}}},   # star is its own add -> pops in staggered after the helmet (raw: keep the sharp points)
  'clown':{'versions':{'mouth':'mouth','l-brow':'brow-l','r-brow':'brow-r','l-eye':'eye-l','r-eye':'eye-r'},

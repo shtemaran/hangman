@@ -171,9 +171,11 @@ headMorph:{…} }`. A quick tour of the built-ins:
   double chin on the **`chin` gaze** (rides between the mouth and the head bottom)
   and an occluder that cuts the **body** where the wide head overhangs it
   (`occTarget:'body'`). Full emotions.
-- **soldier** — a steel helmet (dome + brim + star): a white occluder cuts the head
-  crown (`occHead`, head-only, so the brows stay), the ink dome/brim/star draw on
-  top. No chin strap. Rides the head (`none` gaze); full emotions.
+- **soldier** — a steel helmet (dome + brim): a white occluder cuts the head crown
+  (`occHead`, head-only), the ink dome/brim draw on top, and the brows are hidden
+  (`hide`, the helmet sits low — removing the element keeps the forehead, no cut
+  hole). The **star** is its own add so it pops in staggered after the helmet. No
+  chin strap. Rides the head (`none` gaze); full emotions (eyes+mouth).
 
 ### `adds` — extra features
 
